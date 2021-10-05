@@ -4,6 +4,10 @@ A 3D game framework made for TypeScript, utilizing an entity-component system on
 
 Still developing both code and documentation, so it is suggested to review the existing/example code before diving into the docs.
 
+#### Examples
+
+* [Clicker trainer minigame](https://slynch.ovh/tsthree-examples/wireframe-clicker/)
+
 ## Dependencies
 
 * PIXI v5.1.5
