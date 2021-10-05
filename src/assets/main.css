@@ -1,0 +1,54 @@
+@charset "UTF-8";
+body {
+    margin: 0 0 0 0;
+    background-color: #000000;
+    overflow: hidden;
+    background-repeat: no-repeat;
+    background-size: 100% 100%
+}
+
+#main-canvas {
+    position: absolute;
+    transform: translateX(-50%) translateY(-50%);
+    left: 50%;
+    top: 50%;
+    /*width: 1280px;*/
+    /*height: 720px;*/
+    z-index: 0;
+    image-rendering: optimizeSpeed;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -o-crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: pixelated;
+    image-rendering: optimize-contrast;
+    -ms-interpolation-mode: nearest-neighbor;
+}
+
+#ui-canvas {
+    position: absolute;
+    transform: translateX(-50%) translateY(-50%);
+    left: 50%;
+    top: 50%;
+    /*width: 1280px;*/
+    /*height: 720px;*/
+    image-rendering: optimizeSpeed;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -o-crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: pixelated;
+    image-rendering: optimize-contrast;
+    -ms-interpolation-mode: nearest-neighbor;
+    z-index: 1;
+    /*touch-action: manipulation;*/
+}
+
+#click-handler {
+    position: absolute;
+    transform: translateX(-50%) translateY(-50%);
+    left: 50%;
+    top: 50%;
+    /*width: 1280px;*/
+    /*height: 720px;*/
+    z-index: 2;
+    /*touch-action: manipulation;*/
+}

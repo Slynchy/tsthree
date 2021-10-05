@@ -1,0 +1,51 @@
+{
+  "name": "tsthree",
+  "version": "0.1.0",
+  "description": "A 3D game framework made for TypeScript",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "npx webpack --config webpack.dev.config.js",
+    "build-prod": "npx webpack --config webpack.prod.config.js",
+    "dev": "npx webpack-dev-server --config webpack.dev.config.js",
+    "lint": "eslint ./src --ext .ts"
+  },
+  "keywords": [
+    "typescript",
+    "three",
+    "threejs",
+    "3D",
+    "pixi",
+    "pixijs",
+    "2D",
+    "js",
+    "ts",
+    "javascript",
+    "framework"
+  ],
+  "author": "Sam Lynch",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/stats": "^0.16.30",
+    "@types/three": "^0.131.0",
+    "@typescript-eslint/eslint-plugin": "^4.28.1",
+    "@typescript-eslint/parser": "^4.28.1",
+    "copy-webpack-plugin": "^5.0.4",
+    "css-loader": "^3.2.0",
+    "eslint": "^7.29.0",
+    "file-loader": "^5.0.2",
+    "html-webpack-plugin": "^3.2.0",
+    "is-mobile": "^3.0.0",
+    "pixi-filters": "^3.2.2",
+    "pixi.js": "^5.1.5",
+    "stats.js": "^0.17.0",
+    "style-loader": "^1.0.0",
+    "terser-webpack-plugin": "^4.2.3",
+    "three": "^0.131.3",
+    "ts-loader": "^6.2.0",
+    "tslint-loader": "^3.5.4",
+    "typescript": "^4.3.5",
+    "webpack": "^4.41.1",
+    "webpack-cli": "^3.3.9",
+    "webpack-dev-server": "^3.8.2"
+  }
+}

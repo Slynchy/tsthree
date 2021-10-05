@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "outDir": "./dist/",
+    "baseUrl": "./src",
+    "noImplicitAny": true,
+    "moduleResolution": "node",
+    "target": "es6",
+    "jsx": "react-native",
+    "allowJs": true,
+    "sourceMap": true,
+    "paths": {},
+    "typeRoots": [ "./types", "./node_modules/@types"]
+  },
+  "exclude": ["webpack.dev.config.js", "webpack.prod.config.js", "build/**/*"]
+}
