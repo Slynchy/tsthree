@@ -10,11 +10,14 @@ Still developing both code and documentation, so it is suggested to review the e
 
 ## Dependencies
 
-* PIXI v5.1.5
-* ThreeJS v0.131.3
-* ESLint v7.29.0
-* TypeScript v4.3.5
-* Webpack v4.41.1
+* PIXI ^5.1.5
+* ThreeJS ^0.131.3
+* ESLint ^7.29.0
+* TypeScript ^4.3.5
+* Webpack ^4.41.1
+* Tween.js ^18.6.4
+* dat.gui ^0.7.7
+* Mousetrap ^1.6.5
 
 ## Project structure
 
