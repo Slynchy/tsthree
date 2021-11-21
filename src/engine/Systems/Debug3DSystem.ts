@@ -15,14 +15,16 @@ export class Debug3DSystem extends System {
 
     public static destroy(_component: Component)   : void {};
 
-    public static onAwake(_component: Debug3DComponent)   : void {
+    public static onAwake(_component: Debug3DComponent): void {
         // @ts-ignore
         _component.parent.add(_component._mesh);
     };
-    public static onStep(_component: Component)    : void {
+
+    public static onStep(_dt: number, _component: Component): void {
 
     };
-    public static onDestroy(_component: Component) : void {
+
+    public static onDestroy(_component: Debug3DComponent): void {
         // @ts-ignore
         _component.parent.remove(_component._mesh);
     };

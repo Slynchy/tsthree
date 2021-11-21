@@ -1,4 +1,5 @@
 export { Component } from "./engine/Component";
+export { System } from "./engine/Systems/System";
 export { Engine } from "./engine/Engine";
 export { GameObject } from "./engine/GameObject";
 export { HelperFunctions } from "./engine/HelperFunctions";
@@ -16,3 +17,6 @@ export { BreadthFirst } from "./engine/ModularPathFinding/BreadthFirst/BreadthFi
 
 export { ContainerComponent } from "./engine/Components/ContainerComponent";
 export { SpriteComponent } from "./engine/Components/SpriteComponent";
+
+export { IVector2 } from "./engine/Types/IVector2";
+export { IVector3 } from "./engine/Types/IVector3";

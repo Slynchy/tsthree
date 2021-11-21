@@ -1,12 +1,17 @@
 import { Engine } from "./Engine";
 import { HelperFunctions } from "./HelperFunctions";
-import { Container as PIXIContainer, DisplayObject, Renderer as PIXIRenderer } from "pixi.js";
+import {
+    autoDetectRenderer,
+    Container as PIXIContainer,
+    DisplayObject,
+    Graphics,
+    Renderer as PIXIRenderer
+} from "pixi.js";
 import { PIXIConfig } from "../config/PIXIConfig";
+import { ENGINE_DEBUG_MODE } from "./Constants/Constants";
 
 export class UIManager {
 
-    public readonly width: number;
-    public readonly height: number;
     private canvasElement: HTMLCanvasElement;
     private renderer2d: PIXIRenderer;
     private stage: PIXIContainer;
@@ -14,22 +19,50 @@ export class UIManager {
     private changeDetected: boolean = false;
     private sceneObjects: unknown[] = [];
 
-    constructor(_engine: Engine) {
+    constructor(_engine: Engine, _config: typeof PIXIConfig) {
         this.engine = _engine;
         this.engine.getTicker().add(() => this.onStep());
         this.canvasElement = document.createElement("canvas") as HTMLCanvasElement;
         this.canvasElement.id = "ui-canvas";
-        // todo: this should probably be replaced with a CanvasRenderer so we don't use >1 webgl instances
-        this.renderer2d = new PIXIRenderer({
+        // fixme: this should probably be replaced with a CanvasRenderer so we don't use >1 webgl instances
+        this.renderer2d = autoDetectRenderer({
             view: this.canvasElement,
             transparent: true,
-            width: this.width = PIXIConfig.width,
-            height: this.height = PIXIConfig.height,
-            antialias: true
+            antialias: _config.antialias
         });
-        this.renderer2d.view.style.width = PIXIConfig.width.toString() + "px";
-        this.renderer2d.view.style.height = PIXIConfig.height.toString() + "px";
+
         this.stage = new PIXIContainer();
+    }
+
+    public static configureRenderer2d(_config: typeof PIXIConfig, _engine: Engine, _renderer: PIXIRenderer): void {
+        const context = _engine.getRenderer().getContext();
+        const contextCanvas: HTMLCanvasElement = context.canvas as HTMLCanvasElement;
+        // _renderer.resolution = (_config.devicePixelRatio);
+        const w = context.canvas.width;
+        const h = context.canvas.height;
+        const sW = parseInt(contextCanvas.style.width);
+        const sH = parseInt(contextCanvas.style.height);
+        // _renderer.view.width = w;
+        // _renderer.view.height = h;
+        _renderer.resize(_config.width, _config.height);
+        _renderer.view.style.width = sW + "px";
+        _renderer.view.style.height = sH + "px";
+    }
+
+    private static hookResize(_config: typeof PIXIConfig, _engine: Engine, _renderer: PIXIRenderer): void {
+        const onResize = () => UIManager.configureRenderer2d(
+            _config, _engine, _renderer
+        );
+        window.addEventListener('resize', onResize);
+        onResize();
+    }
+
+    public getStage(): PIXIContainer {
+        return this.stage;
+    }
+
+    public getRenderer(): PIXIRenderer {
+        return this.renderer2d;
     }
 
     public removeObject(obj: DisplayObject): void {
@@ -43,12 +76,48 @@ export class UIManager {
         }
     }
 
-    public init(): void {
+    public init(_engine: Engine): void {
         // create new canvas element over top of existing one
         // create new renderer2d and bind to the above canvas element
         // ?
         // profit?
         document.body.appendChild(this.canvasElement);
+
+        UIManager.hookResize(PIXIConfig, _engine, this.renderer2d);
+
+        if (ENGINE_DEBUG_MODE) {
+            const debugGrid = new Graphics();
+            debugGrid.lineStyle(5, 0x00FF00, 0.3, 0.5);
+            debugGrid.lineTo(
+                this.renderer2d.width,
+                0
+            );
+            debugGrid.lineTo(
+                this.renderer2d.width,
+                this.renderer2d.height
+            );
+            debugGrid.lineTo(
+                0,
+                this.renderer2d.height
+            );
+            debugGrid.lineTo(
+                0,
+                0
+            );
+            debugGrid.lineTo(
+                this.renderer2d.width,
+                this.renderer2d.height
+            );
+            debugGrid.moveTo(
+                0,
+                this.renderer2d.height
+            );
+            debugGrid.lineTo(
+                this.renderer2d.width,
+                0
+            );
+            this.stage.addChild(debugGrid);
+        }
     }
 
     public addObject(obj: DisplayObject): void {

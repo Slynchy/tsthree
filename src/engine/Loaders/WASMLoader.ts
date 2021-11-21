@@ -1,16 +1,21 @@
 import { Loader } from "./Loader";
 
-export class WASMLoader extends Loader {
+export class WASMLoader extends Loader<object> {
 
-    private readonly cache: {[key: string]: object} = {};
-    private queue: {[key: string]: string} = {};
+    private readonly _cache: {[key: string]: object} = {};
+    private queue: { [key: string]: string } = {};
 
     public add(_key: string, _asset: string): void {
         this.queue[_key] = _asset;
     }
 
     public get<T>(_key: string): T {
-        return (this.cache[_key] as unknown as T) || null;
+        return (this._cache[_key] as unknown as T) || null;
+    }
+
+    unload(_key: string): void {
+        if (this._cache[_key])
+            delete this._cache[_key];
     }
 
     public load(): Promise<void> {
@@ -43,7 +48,7 @@ export class WASMLoader extends Loader {
 
             Promise.all(promises).then((responses: object[]) => {
                 responses.forEach((e: object, i: number) => {
-                    this.cache[keys[i]] = e;
+                    this._cache[keys[i]] = e;
                 });
                 resolve();
             });
@@ -55,6 +60,9 @@ export class WASMLoader extends Loader {
             // };
             // });})()
         });
+    }
+
+    cache<T>(_key: string, _asset: T): void {
     }
 
 }

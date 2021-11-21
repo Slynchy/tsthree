@@ -3,13 +3,18 @@ import { GameObject } from "./GameObject";
 export abstract class Component {
 
     public static readonly id: string = "component";
-    protected parent: GameObject;
+    protected _parent: GameObject;
 
-    public setParent(_parent: GameObject): void {
-        this.parent = _parent;
+    public get parent(): GameObject {
+        return this._parent;
+    }
+
+    public set parent(_parent: GameObject) {
+        this._parent = _parent;
     }
 
     public abstract onAttach(): void;
+
     public abstract onDetach(): void;
 
     /**

@@ -1,8 +1,7 @@
 import { Component } from "./Component";
 import { InteractionEvent } from "./Types/InteractionEvent";
 import { HelperFunctions } from "./HelperFunctions";
-import { getSystem, SystemMap } from "./Systems/SystemMap";
-import { Engine } from "./Engine";
+import { getSystem } from "./Systems/SystemMap";
 import { Object3D } from "three";
 
 // tslint:disable-next-line:no-any
@@ -24,7 +23,7 @@ export class GameObject extends Object3D {
             throw new Error("Cannot have multiple of the same component on a single GameObject!");
         }
         this.components.push(_component);
-        this.components[this.components.length - 1].setParent(this);
+        this.components[this.components.length - 1].parent = (this);
         _component.onAttach();
         for(let i = 0; i < this.components.length - 1; i++) {
             this.components[i].onComponentAttached(
@@ -36,13 +35,13 @@ export class GameObject extends Object3D {
         this.fireEvent("_onAddComponent", _component);
     }
 
-    public removeComponent(_component: typeof Component): void {
+    public removeComponent(_component: typeof Component | Component): void {
         if (!this.hasComponent(_component)) {
             throw new Error("Could not remove component from GameObject; doesn't exist!");
         }
 
         for (const c in this.components) {
-            if (this.components[c].constructor === _component) {
+            if (this.components[c] === _component || this.components[c].constructor === _component) {
                 this.components[c].onDetach();
                 this.fireEvent(
                     "_onRemoveComponent",
@@ -50,6 +49,12 @@ export class GameObject extends Object3D {
                 );
                 return;
             }
+        }
+    }
+
+    public removeAllComponents(): void {
+        for (const c in this.components) {
+            this.removeComponent(this.components[c]);
         }
     }
 
@@ -108,7 +113,7 @@ export class GameObject extends Object3D {
 
     public onStep(_dt: number): void {
         for (const component of this.components) {
-            getSystem(component).onStep(component);
+            getSystem(component).onStep(_dt, component);
         }
     }
 

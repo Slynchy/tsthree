@@ -20,6 +20,22 @@ export class DirectionalLight extends GameObject {
         });
     }
 
+    // @ts-ignore
+    public get castShadow(): boolean {
+        return this._lightObj?.castShadow || false;
+    }
+
+    // @ts-ignore
+    public set castShadow(val: boolean) {
+        if (this._lightObj) {
+            this._lightObj.castShadow = val;
+        }
+    }
+
+    public getLightObj(): ThreeDirectionalLight {
+        return this._lightObj;
+    }
+
     onStep(_dt: number) {
         super.onStep(_dt);
     }

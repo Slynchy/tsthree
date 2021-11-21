@@ -16,7 +16,7 @@ export class TransformSystem extends System {
         // TransformSystem.onDestroy(_component);
     }
 
-    public static onStep(_component: TransformComponent): void {
+    public static onStep(_dt: number, _component: TransformComponent): void {
         this.updateReferences(_component);
     }
 

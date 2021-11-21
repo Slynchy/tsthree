@@ -1,12 +1,12 @@
 import { Component } from "../Component";
 import {
-    SphereGeometry,
     BoxGeometry,
     BufferGeometry,
     Mesh,
     MeshBasicMaterial,
+    OctahedronGeometry,
     PlaneGeometry,
-    OctahedronGeometry
+    SphereGeometry
 } from "three";
 
 export enum Debug3DShapes {
@@ -17,14 +17,14 @@ export enum Debug3DShapes {
 }
 
 export class Debug3DComponent extends Component {
-    public readonly id: string = "Debug3DComponent";
+    public static readonly id: string = "Debug3DComponent";
     private _geometry: BufferGeometry;
     private _mesh: Mesh;
 
-    constructor(_shape: Debug3DShapes) {
+    constructor(_shape: Debug3DShapes | BufferGeometry, material?: MeshBasicMaterial) {
         super();
 
-        switch(_shape) {
+        switch (_shape) {
             case Debug3DShapes.SPHERE:
                 this._geometry = new SphereGeometry();
                 break;
@@ -37,9 +37,15 @@ export class Debug3DComponent extends Component {
             case Debug3DShapes.OCTAHEDRON:
                 this._geometry = new OctahedronGeometry();
                 break;
+            default:
+                if (_shape instanceof BufferGeometry) {
+                    this._geometry = _shape;
+                } else {
+                    console.warn("Debug3DComponent received unknown param %o", _shape);
+                }
         }
 
-        this._mesh = new Mesh( this._geometry, new MeshBasicMaterial( {
+        this._mesh = new Mesh(this._geometry, material || new MeshBasicMaterial({
             color: 0xFFFFFF
         }));
     }

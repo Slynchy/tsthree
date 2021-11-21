@@ -1,9 +1,7 @@
 import { Engine } from "./Engine";
-import { Container as PIXIContainer, DisplayObject, Filter } from "pixi.js";
 import { GameObject } from "./GameObject";
 import { HelperFunctions } from "./HelperFunctions";
-import { Container } from "./Container";
-import { Group, Object3D } from "three";
+import { Group } from "three";
 
 export class Scene {
     protected stage: Group;
@@ -21,12 +19,27 @@ export class Scene {
         }
     }
 
+    public removeObject(obj: GameObject): void {
+        const ind = this.sceneObjects.findIndex((e) => e === obj);
+        if (ind !== -1) {
+            this.sceneObjects.splice(ind, 1);
+        }
+        obj.removeFromParent();
+    }
+
+    public getChildren(): unknown[] {
+        return this.sceneObjects;
+    }
+
     public removeAllObjects(): void {
         // fixme
-        // for (let i: number = this.sceneObjects.length; i >= 0; i--) {
-        //     this.stage.remove(<Object3D>this.sceneObjects[i]);
-        //     this.sceneObjects.pop();
-        // }
+        this.stage.traverse((e) => {
+            if (e instanceof GameObject) {
+                e.removeAllComponents();
+            }
+        });
+        this.stage.clear();
+        this.sceneObjects = [];
     }
 
     /**

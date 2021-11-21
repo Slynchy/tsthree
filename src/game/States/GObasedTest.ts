@@ -183,7 +183,7 @@ export class GObasedTest extends State {
         );
         _engine.getUIManager().addObject(this.scoreText);
 
-        const crt = new Sprite(_engine.getTexture("crt"));
+        const crt = new Sprite(_engine.getPIXITexture("crt"));
         crt.interactive = true;
         crt.width = PIXIConfig.width;
         crt.height = PIXIConfig.height;
