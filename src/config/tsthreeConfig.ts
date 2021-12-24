@@ -1,4 +1,6 @@
-export const PIXIConfig: {
+import { IData } from "../engine/Types/IData";
+
+export const tsthreeConfig: {
   width: number;
   height: number;
   transparent: boolean;
@@ -10,6 +12,9 @@ export const PIXIConfig: {
   defaultCameraType: "perspective" | "orthographic";
   devicePixelRatio: number;
   autoResize: "width" | "height" | "none";
+  maintainResolution: boolean; // if true, continue using config resolution even if canvas size changes
+  gamePlatform: "none" | "facebook",
+  getLatestData: (e: IData[]) => IData
 } = {
   width: 720,
   height: 1280,
@@ -20,6 +25,11 @@ export const PIXIConfig: {
   sharedLoader: false,
   autoStart: false,
   defaultCameraType: "perspective",
-  devicePixelRatio: window.devicePixelRatio,
+  devicePixelRatio: window.devicePixelRatio || 1,
   autoResize: "height",
+  maintainResolution: true,
+  gamePlatform: "none",
+  getLatestData: e => {
+    return e[0];
+  }
 };

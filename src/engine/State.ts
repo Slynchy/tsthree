@@ -25,11 +25,15 @@ export abstract class State {
 
     public abstract onAwake(_engine: Engine, _params?: unknown): void;
 
-    public abstract onStep(_engine: Engine): void;
+    public onStep(_engine: Engine): void {
+        if (this.scene) this.scene.onStep(_engine);
+    };
+
+    public abstract preload(_engine: Engine): Promise<void>;
 
     /**
      * Remember to delete objects in your override function here!
      * @param engine
      */
-    public abstract onDestroy(engine: Engine): void;
+    public abstract onDestroy(_engine: Engine): void;
 }

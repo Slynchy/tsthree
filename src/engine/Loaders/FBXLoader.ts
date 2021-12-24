@@ -1,5 +1,5 @@
 import { FBXLoader as ThreeFBXLoader } from "three/examples/jsm/loaders/FBXLoader";
-import { Loader } from "./Loader";
+import { ILoaderReturnValue, Loader } from "./Loader";
 import { Group } from "three";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader";
 import { LoaderStatus } from "./LoaderStatus";
@@ -54,22 +54,32 @@ export class FBXLoader extends Loader<Group> {
             delete this._cache[_key];
     }
 
-    load(): Promise<void> {
-        return new Promise<void>((_resolve, _reject) => {
+    load(
+        _onProgress?: (progress: number) => void
+    ): Promise<ILoaderReturnValue> {
+        const returnValue: ILoaderReturnValue = {};
+        let _cacheCounter = -1;
+        return new Promise<ILoaderReturnValue>((_resolve, _reject) => {
             const resolve: () => void = () => {
                 const keys = Object.keys(this.activeQueueProgress);
+                if (keys.length === 0) return;
                 const len = keys
                     .map((e) => this.activeQueueProgress[e])
                     .filter((e) => e.status === LoaderStatus.SUCCESS || e.status === LoaderStatus.ERROR)
                     .length;
 
-                if (len !== Object.keys(this.activeQueueProgress).length) {
+                if (_cacheCounter !== len) {
+                    _cacheCounter = len;
+                    _onProgress ? _onProgress((len / keys.length) * 100) : undefined;
+                }
+
+                if (len !== keys.length) {
                     // not done yet
                     setTimeout(() => resolve(), 100);
                     FBXLoader.log("Waiting to load more");
                     return;
                 } else {
-                    FBXLoader.log("Done loading");
+                    FBXLoader.log("Done loading obj/mtl queue");
                 }
 
                 // donezo
@@ -83,16 +93,27 @@ export class FBXLoader extends Loader<Group> {
                 });
 
                 this._reset();
-                _resolve();
+                _resolve(returnValue);
             }
 
-            Object.keys(this.activeQueueProgress).forEach((_key: string) => {
+            const queueKeys = Object.keys(this.activeQueueProgress);
+
+            if (queueKeys.length === 0) {
+                return _resolve(returnValue);
+            }
+
+            queueKeys.forEach((_key: string) => {
                 const fbxLoaderProgress = (this.activeQueueProgress[_key]);
+                returnValue[_key] = {success: false};
                 this.loadResource(fbxLoaderProgress)
-                    .then(() => FBXLoader.log(`Loaded FBX ${fbxLoaderProgress.path}`))
-                    .then(() => resolve())
+                    .then(() => {
+                        FBXLoader.log(`Loaded FBX ${fbxLoaderProgress.path}`);
+                        returnValue[_key].success = true;
+                        return resolve();
+                    })
                     .catch((err) => {
                         console.error(err);
+                        returnValue[_key].error = err;
                     });
             });
         })
@@ -132,6 +153,10 @@ export class FBXLoader extends Loader<Group> {
 
     private existsInCache(_key: string): boolean {
         return Boolean(this._cache[_key]);
+    }
+
+    public isAssetLoaded(_key: string): boolean {
+        return this.existsInCache(_key);
     }
 
 

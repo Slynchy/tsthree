@@ -1,12 +1,15 @@
 import { Component } from "../Component";
 import { Container as PIXIContainer, DisplayObject } from "pixi.js";
 import { GameObject } from "../GameObject";
-import { HelperFunctions } from "../HelperFunctions";
 import { TransformComponent } from "./TransformComponent";
 import { SpriteComponent } from "./SpriteComponent";
 
+/**
+ * @deprecated The fuck is this actually used for?
+ */
 export class ContainerComponent extends Component {
 
+    // protected static readonly _system: typeof BoxColliderSystem = BoxColliderSystem;
     private _container: PIXIContainer;
 
     constructor() {

@@ -1,4 +1,5 @@
 import { Component } from "../Component";
+import { GenericAnimationSystem } from "../Systems/GenericAnimationSystem";
 
 type TOnTickCallback = (
     _dt: number,
@@ -7,6 +8,7 @@ type TOnTickCallback = (
 
 export class GenericAnimationComponent extends Component {
     public static readonly id: string = "GenericAnimationComponent";
+    protected static readonly _system: typeof GenericAnimationSystem = GenericAnimationSystem;
     public readonly onTick: TOnTickCallback;
     public _progress: number;
     public _speed: number;

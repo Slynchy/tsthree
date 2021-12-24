@@ -1,5 +1,5 @@
 import { Engine, GameObject, HelperFunctions, State } from "../../tsthree";
-import { PIXIConfig } from "../../config/PIXIConfig";
+import { tsthreeConfig } from "../../config/tsthreeConfig";
 import {
     CameraHelper,
     DirectionalLight,
@@ -34,7 +34,7 @@ export class ShadowLightingTest extends State {
         _engine.getRenderer().shadowMap.autoUpdate = true;
         _engine.getRenderer().shadowMap.type = PCFSoftShadowMap;
         _engine.getRenderer().setSize(
-            window.innerHeight * (PIXIConfig.width / PIXIConfig.height),
+            window.innerHeight * (tsthreeConfig.width / tsthreeConfig.height),
             window.innerHeight
         );
 
@@ -153,5 +153,9 @@ export class ShadowLightingTest extends State {
             // @ts-ignore
             _engine.getMainCamera().fov -= 0.5;
         });
+    }
+
+    preload(_engine: Engine): Promise<void> {
+        return Promise.resolve(undefined);
     }
 }

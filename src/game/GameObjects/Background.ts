@@ -3,6 +3,7 @@ import { Debug3DComponent, Debug3DShapes } from "../../engine/Components/Debug3D
 import { Color, LineBasicMaterial, MeshBasicMaterial } from "three";
 import { lerp } from "three/src/math/MathUtils";
 import { HelperFunctions } from "../../engine/HelperFunctions";
+import * as TWEEN from "@tweenjs/tween.js";
 
 const DEFAULT_SIZE = 5;
 
@@ -54,20 +55,16 @@ export class Background extends GameObject {
     }
 
     public async rotate(): Promise<void> {
-        await HelperFunctions.lerpToPromise(
-            // @ts-ignore
+        await HelperFunctions.TWEENVec3AsPromise(
             this.rotation,
-            {x: Math.PI / 2, y: 0},
-            0.01,
-            HelperFunctions.lerp
-        );
-        await HelperFunctions.lerpToPromise(
-            // @ts-ignore
+            {x: Math.PI / 2, y: this.rotation.y, z: this.rotation.z},
+            TWEEN.Easing.Linear.None
+        ).promise;
+        await HelperFunctions.TWEENVec3AsPromise(
             this.rotation,
-            {x: Math.PI / 2, y: Math.PI / 2},
-            0.01,
-            HelperFunctions.lerp
-        );
+            {x: this.rotation.x, y: Math.PI / 2, z: this.rotation.z},
+            TWEEN.Easing.Linear.None
+        ).promise;
         return;
     }
 

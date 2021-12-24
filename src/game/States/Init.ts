@@ -1,8 +1,11 @@
 import { State, Engine, GameObject } from "../../tsthree";
-import { PIXIConfig } from "../../config/PIXIConfig";
+import { tsthreeConfig as PIXIConfig } from "../../config/tsthreeConfig";
 import { Debug3DComponent, Debug3DShapes } from "../../engine/Components/Debug3DComponent";
 
 export class Init extends State {
+    public preload(_engine: Engine): Promise<void> {
+        return Promise.resolve();
+    }
 
     private direction: number = -1;
     private go: GameObject;

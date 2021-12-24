@@ -1,0 +1,19 @@
+{
+  "instant_games": {
+    "platform_version": "RICH_GAMEPLAY",
+    "navigation_menu_version": "NAV_BAR",
+    "orientation": "PORTRAIT",
+    "custom_update_templates": {
+      "default": {
+        "example": "default"
+      }
+    },
+    "match_player_config": {
+      "min_context_size": 2,
+      "max_context_size": 18
+    },
+    "bot": {
+      "subscription_type": "OPT_IN_PUBLIC"
+    }
+  }
+}

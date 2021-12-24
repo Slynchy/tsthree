@@ -1,45 +1,45 @@
 import { Engine } from "./Engine";
 import { GameObject } from "./GameObject";
 import { HelperFunctions } from "./HelperFunctions";
-import { Group } from "three";
+import { Group, Object3D } from "three";
 
 export class Scene {
     protected stage: Group;
-    protected sceneObjects: unknown[];
 
     constructor() {}
 
-    public addObject(obj: GameObject): void {
+    public addObject(obj: GameObject | Object3D): void {
         if (!this.stage) this.createStage();
         try {
             HelperFunctions.addToStage(this.stage, obj);
-            this.sceneObjects.push(obj);
         } catch (err) {
             console.error(err);
         }
     }
 
     public removeObject(obj: GameObject): void {
-        const ind = this.sceneObjects.findIndex((e) => e === obj);
-        if (ind !== -1) {
-            this.sceneObjects.splice(ind, 1);
-        }
         obj.removeFromParent();
     }
 
-    public getChildren(): unknown[] {
-        return this.sceneObjects;
+    public getStage(): unknown[] {
+        return this.stage.children;
     }
 
-    public removeAllObjects(): void {
-        // fixme
+    public destroyAllObjects(): void {
         this.stage.traverse((e) => {
             if (e instanceof GameObject) {
-                e.removeAllComponents();
+                e.destroy();
             }
         });
+        this.stage.removeFromParent();
+        this.stage = new Group();
+        this.removeAllObjects();
+    }
+
+    public removeAllObjects(_destroy?: boolean): void {
+        if (_destroy)
+            this.stage.traverse((e: GameObject) => e.destroy ? e.destroy() : null);
         this.stage.clear();
-        this.sceneObjects = [];
     }
 
     /**
@@ -58,11 +58,11 @@ export class Scene {
     }
 
     public onStep(_engine: Engine): void {
-        for (const i of this.sceneObjects) {
-            if (i && i instanceof GameObject) {
-                (i as GameObject).onStep(_engine.deltaTime);
+        this.stage.traverse((e) => {
+            if (e instanceof GameObject) {
+                e.onStep(_engine.deltaTime);
             }
-        }
+        });
     }
 
     public render(_engine: Engine): void {
@@ -71,6 +71,5 @@ export class Scene {
 
     private createStage(): void {
         this.stage = new Group();
-        this.sceneObjects = [];
     }
 }

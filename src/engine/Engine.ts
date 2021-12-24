@@ -1,11 +1,10 @@
 import { StateManager } from "./StateManager";
 import { State } from "./State";
 import { Loader, LoaderResource, TextStyle, Texture as PIXITexture, Ticker as PIXITicker } from "pixi.js";
-import { InputManager } from "./InputManager";
 import { UIManager } from "./UIManager";
 import { PIXILoader } from "./Loaders/PIXILoader";
 import { WASMLoader } from "./Loaders/WASMLoader";
-import { PIXIConfig } from "../config/PIXIConfig";
+import { tsthreeConfig } from "../config/tsthreeConfig";
 import { DEFAULT_CAMERA_FOV, DEFAULT_TEXTURE_B64, ENGINE_DEBUG_MODE } from "./Constants/Constants";
 import { WEBGL } from "three/examples/jsm/WebGL";
 import { ENGINE_ERROR } from "./ErrorCodes/EngineErrorCodes";
@@ -29,13 +28,20 @@ import { OBJLoader } from "./Loaders/OBJLoader";
 import { FBXLoader } from "./Loaders/FBXLoader";
 import { WebfontLoaderPlugin } from "pixi-webfont-loader";
 import * as TWEEN from '@tweenjs/tween.js'
-import Resource = PIXI.resources.Resource;
+import { PlatformSDK } from "./PlatformSDKs/PlatformSDK";
+import { DummySDK } from "./PlatformSDKs/DummySDK";
+import { FBInstantSDK } from "./PlatformSDKs/FBInstantSDK";
+import { SaveHandler } from "./Savers/SaveHandler";
+import { LocalStorageSaver } from "./Savers/LocalStorageSaver";
+import { FBAdManager } from "./FBAdManager";
+import { FBInstantSaver } from "./Savers/FBInstantSaver";
+import { Saver } from "./Savers/Saver";
+import { AnalyticsHandler } from "./Analytics/AnalyticsHandler";
+import { FBAnalytics } from "./Analytics/FBAnalytics";
+import { BaseAnalytics } from "./Analytics/BaseAnalytics";
+import { IVector2 } from "./Types/IVector2";
 
-declare const window: Window & {
-    ENGINE: Engine;
-};
-
-const ENABLE_INPUT_MANAGER: boolean = false;
+export const DEFAULT_TEXTURE = ImageUtils.loadTexture(DEFAULT_TEXTURE_B64);
 
 export class Engine {
 
@@ -48,11 +54,14 @@ export class Engine {
     private readonly objLoader: OBJLoader;
     private readonly fbxLoader: FBXLoader;
     private readonly wasmloader: WASMLoader;
-    private readonly inputManager: InputManager;
     private readonly uiManager: UIManager;
     private readonly stage: Scene;
     private readonly defaultTexture: ThreeTexture;
     private readonly defaultCameraType: string;
+    private readonly platformSdk: PlatformSDK;
+    private readonly saveHandler: SaveHandler;
+    private readonly fbAdManager: FBAdManager;
+    private readonly analyticsHandler: AnalyticsHandler;
 
     // DEBUG
     private fpsDisplay: Stats;
@@ -63,12 +72,14 @@ export class Engine {
     private mainCamera: Camera;
     private _scaleFactor: number = 1;
 
-    // todo: abstract PIXIConfig
-    constructor(_config: typeof PIXIConfig) {
-        if (window.ENGINE) throw new Error(ENGINE_ERROR.MULTIPLE_INSTANCE);
+    // todo: abstract tsthreeConfig
+    constructor(_config: typeof tsthreeConfig) {
+        if ((window as unknown as { ENGINE: Engine }).ENGINE)
+            throw new Error(ENGINE_ERROR.MULTIPLE_INSTANCE);
         if (!WEBGL.isWebGLAvailable()) throw new Error(ENGINE_ERROR.WEBGL_UNSUPPORTED);
         if (ENGINE_DEBUG_MODE && WEBGL.isWebGL2Available())
             console.log("Browser supports WebGL2");
+
         this.renderer3d = new WebGLRenderer({
             alpha: true,
             antialias: _config.antialias
@@ -77,9 +88,6 @@ export class Engine {
         this.defaultCameraType = _config.defaultCameraType;
 
         this.ticker = new PIXITicker();
-        if (ENABLE_INPUT_MANAGER) {
-            this.inputManager = new InputManager(this);
-        }
         this.stateManager = new StateManager(this);
         this.uiManager = new UIManager(this, _config);
         Loader.registerPlugin(WebfontLoaderPlugin);
@@ -88,13 +96,44 @@ export class Engine {
         this.fbxLoader = new FBXLoader();
         this.wasmloader = new WASMLoader();
         this.stage = new Scene();
-        this.defaultTexture = ImageUtils.loadTexture(DEFAULT_TEXTURE_B64); // fixme
-        this.defaultTexture.wrapS = RepeatWrapping;
-        this.defaultTexture.wrapT = RepeatWrapping;
-        this.defaultTexture.repeat.set(15, 15);
-        this.defaultTexture.anisotropy = 0;
-        this.defaultTexture.magFilter = NearestFilter;
-        this.defaultTexture.minFilter = LinearMipMapLinearFilter;
+
+        const analyticsModules: BaseAnalytics[] = [];
+        const savers: Saver[] = [
+            new LocalStorageSaver(),
+        ];
+
+        switch (_config.gamePlatform) {
+            case "facebook":
+                // this.platformSdk =
+                this.platformSdk = new FBInstantSDK();
+                this.fbAdManager = new FBAdManager({
+                    fbInstantSDKRef: this.platformSdk as FBInstantSDK,
+                    interstitialRetries: 0,
+                    rewardedRetries: 3,
+                    bannerRetries: 3
+                });
+                savers.push(new FBInstantSaver());
+                analyticsModules.push(new FBAnalytics());
+                break;
+            case "none":
+            default:
+                this.platformSdk = new DummySDK();
+                break;
+        }
+
+        this.analyticsHandler = new AnalyticsHandler(analyticsModules);
+
+        this.saveHandler = new SaveHandler(
+            savers,
+            _config.getLatestData
+        );
+
+        DEFAULT_TEXTURE.wrapS = RepeatWrapping;
+        DEFAULT_TEXTURE.wrapT = RepeatWrapping;
+        DEFAULT_TEXTURE.repeat.set(15, 15);
+        DEFAULT_TEXTURE.anisotropy = 0;
+        DEFAULT_TEXTURE.magFilter = NearestFilter;
+        DEFAULT_TEXTURE.minFilter = LinearMipMapLinearFilter;
 
         if (!_config.autoStart) {
             this.getTicker().stop();
@@ -107,33 +146,74 @@ export class Engine {
         });
         this.getTicker().add(this.mainLoop);
 
+        // @ts-ignore
         window.ENGINE = this;
+    }
+
+    public static configureRenderer3d(_config: typeof tsthreeConfig, _renderer: WebGLRenderer): void {
+        _renderer.setPixelRatio(_config.devicePixelRatio);
+        const size: IVector2 = {x: 0, y: 0};
+
+        switch (_config.autoResize) {
+            case "width":
+                size.x = window.innerWidth;
+                size.y = Math.floor(window.innerWidth * (_config.height / _config.width));
+                break;
+            case "height":
+                size.x = Math.floor(window.innerHeight * (_config.width / _config.height));
+                size.y = window.innerHeight;
+                break;
+            case "none":
+                _renderer.setSize(_config.width, _config.height);
+                size.x = _config.width;
+                size.y = _config.height;
+                break;
+        }
+        _renderer.setSize(
+            (_config.maintainResolution ? _config.width : size.x),
+            (_config.maintainResolution ? _config.height : size.y)
+        );
+        _renderer.context.canvas.style.width = `${size.x}px`;
+        _renderer.context.canvas.style.height = `${size.y}px`;
+        _renderer.setClearColor(_config.backgroundColor);
     }
 
     public get scaleFactor(): number {
         return this._scaleFactor;
     }
 
-    public static configureRenderer3d(_config: typeof PIXIConfig, _renderer: WebGLRenderer): void {
-        _renderer.setPixelRatio(_config.devicePixelRatio);
-        switch (_config.autoResize) {
-            case "width":
-                _renderer.setSize(
-                    window.innerWidth,
-                    Math.floor(window.innerWidth * (_config.height / _config.width))
-                );
-                break;
-            case "height":
-                _renderer.setSize(
-                    Math.floor(window.innerHeight * (_config.width / _config.height)),
-                    window.innerHeight
-                );
-                break;
-            case "none":
-                _renderer.setSize(_config.width, _config.height);
-                break;
-        }
-        _renderer.setClearColor(_config.backgroundColor);
+    public get platformSDK(): PlatformSDK {
+        return this.platformSdk;
+    }
+
+    public getSaveHandler(): SaveHandler {
+        return this.saveHandler;
+    }
+
+    public static resize(elements: HTMLElement[], _config: typeof tsthreeConfig): void {
+        let w = window.innerWidth;
+        let h = window.innerHeight;
+        elements.forEach((e) => {
+            if (!e) {
+                return;
+            }
+            switch (tsthreeConfig.autoResize) {
+                case "height":
+                    e.style.height = `${Math.floor(h)}px`;
+                    w = _config.width * (parseInt(e.style.height) / _config.height);
+                    e.style.width = `${Math.floor(w)}px`;
+                    break;
+                case "width":
+                    e.style.width = `${Math.floor(w)}px`;
+                    h = _config.height * (parseInt(e.style.width) / _config.width);
+                    e.style.height = `${Math.floor(h)}px`;
+                    break;
+                case "none":
+                    e.style.width = `${_config.width}px`;
+                    e.style.height = `${_config.height}px`;
+                    break;
+            }
+        });
     }
 
     get deltaTime(): number {
@@ -173,24 +253,19 @@ export class Engine {
         return this.mainCamera;
     }
 
-    public loadWASM(key: string, filepath: string | string[]): Promise<void> {
-        if (filepath && Array.isArray(filepath)) {
-            // todo handle multiple string input
-        } else {
-            this.wasmloader.add(key as string, filepath as string);
-        }
+    private static hideFontPreload(): void {
+        const collection: HTMLCollection =
+            document.getElementsByClassName("fontPreload");
 
-        // todo: return an actual value
-        return this.wasmloader.load();
+        // tslint:disable-next-line:prefer-for-of
+        for (let i: number = collection.length - 1; i >= 0; i--) {
+            collection[i].parentNode.removeChild(collection[i]);
+        }
     }
 
     // tslint:disable-next-line:no-any
     public getWASM(key: string): any | null {
         return this.wasmloader.get(key) || null;
-    }
-
-    public getInputManager(): InputManager {
-        return this.inputManager;
     }
 
     public changeState(_newState: State, _params?: unknown): void {
@@ -227,25 +302,33 @@ export class Engine {
         return this.stage;
     }
 
-    public getPIXITexture(key: string): PIXITexture {
+    public getPIXIResource(key: string): LoaderResource | PIXITexture {
         const tex: LoaderResource = this.loader.get(key);
         if (!tex) {
             console.warn("Failed to find texture: " + key);
         }
-        return (tex ? tex.texture : null);
+        return (tex && tex.texture ? tex.texture : tex);
     }
 
     public getUIManager(): UIManager {
         return this.uiManager;
     }
 
-    public getOBJ(_key: string): Group {
-        const res = (this.objLoader.get(_key) as Group);
-        return res.clone ? res.clone(true) : res;
+    public loadWASM(key: string, filepath: string | string[]): Promise<void> {
+        if (filepath && Array.isArray(filepath)) {
+            // todo handle multiple string input
+        } else {
+            this.wasmloader.add(key as string, filepath as string);
+        }
+
+        // todo: return an actual value
+        return this.wasmloader.load().then(() => null);
     }
 
     public getFBX(_key: string): Group {
-        return (this.fbxLoader.get(_key) as Group).clone(true);
+        const res = (this.fbxLoader.get(_key) as Group);
+        if (!res) return res;
+        return res.clone ? res.clone(true) : res;
     }
 
     public setMainCamera(camera: Camera): void {
@@ -257,36 +340,47 @@ export class Engine {
         })
     }
 
-    public static resize(elements: HTMLElement[], _config: typeof PIXIConfig): void {
-        let w = window.innerWidth;
-        let h = window.innerHeight;
-        elements.forEach((e) => {
-            if (!e) {
-                return;
-            }
-            switch (PIXIConfig.autoResize) {
-                case "height":
-                    e.style.height = `${Math.floor(h)}px`;
-                    w = _config.width * (parseInt(e.style.height) / _config.height);
-                    e.style.width = `${Math.floor(w)}px`;
-                    break;
-                case "width":
-                    e.style.width = `${Math.floor(w)}px`;
-                    h = _config.height * (parseInt(e.style.width) / _config.width);
-                    e.style.height = `${Math.floor(h)}px`;
-                    break;
-                case "none":
-                    e.style.width = `${_config.width}px`;
-                    e.style.height = `${_config.height}px`;
-                    break;
-            }
-        });
+    public logEvent(eventName: string, valueToSum?: number, parameters?: { [key: string]: string; }): void {
+        return this.analyticsHandler.logEvent(eventName, valueToSum, parameters);
     }
 
-    public init(_initialState: State, _bootAssets: typeof BootAssets): Promise<void> {
+    public isAssetLoaded(_key: string): boolean {
+        return this.objLoader.isAssetLoaded(_key) ||
+            this.fbxLoader.isAssetLoaded(_key) ||
+            this.loader.isAssetLoaded(_key) ||
+            false;
+    }
+
+    public getOBJ(_key: string): Group {
+        const res = (this.objLoader.get(_key) as Group);
+        if (!res) return res;
+        return res.clone ? res.clone(true) : res;
+    }
+
+    public getFont(key: string): TextStyle {
+        return (this.loader.get(key) as LoaderResource)
+            // @ts-ignore
+            ?.styles[0] as TextStyle;
+    }
+
+    public getAdManager(): FBAdManager {
+        return this.fbAdManager;
+    }
+
+    public async init(_initialState: State, _bootAssets: typeof BootAssets): Promise<void> {
+        await this.platformSdk.initialize()
+            .then(() => {
+                // :+1:
+                console.log("Platform SDK initialized");
+                if (!this.platformSdk.isReady()) throw new Error();
+            })
+            .catch((err) => {
+                console.error(err);
+            });
+
         this.renderer3d.domElement.id = "main-canvas";
-        Engine.configureRenderer3d(PIXIConfig, this.renderer3d);
-        this._scaleFactor = PIXIConfig.width / this.renderer3d.getContext().canvas.width;
+        Engine.configureRenderer3d(tsthreeConfig, this.renderer3d);
+        this._scaleFactor = tsthreeConfig.width / this.renderer3d.getContext().canvas.width;
         document.body.appendChild(this.renderer3d.domElement);
 
         if (this.defaultCameraType === "orthographic") {
@@ -301,13 +395,13 @@ export class Engine {
         } else if (this.defaultCameraType === "perspective") {
             this.mainCamera = new PerspectiveCamera(
                 DEFAULT_CAMERA_FOV,
-                // fixme: don't use PIXIConfig directly
-                PIXIConfig.width > PIXIConfig.height ? PIXIConfig.height / PIXIConfig.width : PIXIConfig.width / PIXIConfig.height,
+                // fixme: don't use tsthreeConfig directly
+                tsthreeConfig.width > tsthreeConfig.height ? tsthreeConfig.height / tsthreeConfig.width : tsthreeConfig.width / tsthreeConfig.height,
                 0.3,
                 1000
             );
         } else {
-            throw new Error("Engine.ts @ init() - Unknown camera type " + this.defaultCameraType);
+            throw new Error("Engine @ init() - Unknown camera type " + this.defaultCameraType);
         }
 
         if (ENGINE_DEBUG_MODE) {
@@ -321,7 +415,6 @@ export class Engine {
 this.renderer3d: %O
 this.mainCamera: %O
 this.ticker: %O
-this.inputManager: %O
 this.stateManager: %O
 this.uiManager: %O
 this.loader: %O
@@ -330,7 +423,6 @@ this.wasmloader: %O
                 this.renderer3d,
                 this.mainCamera,
                 this.ticker,
-                this.inputManager,
                 this.stateManager,
                 this.uiManager,
                 this.loader,
@@ -340,37 +432,41 @@ this.wasmloader: %O
 
         this.addRenderPass(new RenderPass(this.stage, this.mainCamera));
         this.uiManager.init(this);
-        if (PIXIConfig.autoResize !== "none")
+        if (tsthreeConfig.autoResize !== "none")
             this.hookResize();
         Engine.hideFontPreload();
 
-        return this.loadAssets(_bootAssets)
+        return this.loadAssets(_bootAssets, (p) => this.platformSdk.setLoadingProgress(p))
             .then(() => {
                 if (ENGINE_DEBUG_MODE) {
                     console.log("Successfully loaded bootassets");
                 }
-                this.stateManager.setState(_initialState);
+                this.platformSdk.setLoadingProgress(100);
+                return this.platformSdk.startGame();
+            })
+            .then(() => this.stateManager.setState(_initialState))
+            .catch((err) => {
+                // Fatal!
+                console.error(err);
             });
-    }
-
-    public getFont(key: string): TextStyle {
-        return (this.loader.get(key) as Resource)
-            // @ts-ignore
-            ?.styles[0] as TextStyle;
     }
 
     private hookResize(): void {
         const onResize = () => {
-            // Engine.resize(elements, PIXIConfig);
-            Engine.configureRenderer3d(PIXIConfig, this.renderer3d);
-            UIManager.configureRenderer2d(PIXIConfig, this, this.uiManager.getRenderer());
+            // Engine.resize(elements, tsthreeConfig);
+            Engine.configureRenderer3d(tsthreeConfig, this.renderer3d);
+            UIManager.configureRenderer2d(tsthreeConfig, this, this.uiManager.getRenderer());
         };
         window.addEventListener('resize', onResize);
         onResize();
     }
 
-    private loadAssets(_bootAssets: typeof BootAssets): Promise<void> {
+    public loadAssets(_bootAssets: typeof BootAssets, _onProgress?: (_prog: number) => void): Promise<void> {
         return new Promise<void>((_resolve: Function, _reject: Function): void => {
+            let progress = [0, 0, 0];
+            const onProgress = (e: number) => {
+                return _onProgress ? _onProgress((progress[0] + progress[1] + progress[2]) / 3) : null;
+            }
             let objDone: boolean = !Boolean(_bootAssets.find((e) => e.type === "obj" || e.type === "obj/mtl"));
             let fbxDone: boolean = !Boolean(_bootAssets.find((e) => e.type === "fbx"));
             const resolve: () => void = () => {
@@ -406,19 +502,21 @@ this.wasmloader: %O
                 }
             }
 
-            this.objLoader.load().then(() => {
-                objDone = true;
-                if (ENGINE_DEBUG_MODE)
-                    console.log("OBJ Loader done");
-            });
+            this.objLoader.load((e) => onProgress(progress[0] = e))
+                .then(() => {
+                    objDone = true;
+                    if (ENGINE_DEBUG_MODE)
+                        console.log("OBJ Loader done");
+                });
 
-            this.fbxLoader.load().then(() => {
-                fbxDone = true;
-                if (ENGINE_DEBUG_MODE)
-                    console.log("FBX Loader done");
-            });
+            this.fbxLoader.load((e) => onProgress(progress[1] = e))
+                .then(() => {
+                    fbxDone = true;
+                    if (ENGINE_DEBUG_MODE)
+                        console.log("FBX Loader done");
+                });
 
-            this.loader.load()
+            this.loader.load((e) => onProgress(progress[2] = e))
                 .then(resolve)
                 .catch(async () => {
                     // todo: add proper retry
@@ -440,15 +538,5 @@ this.wasmloader: %O
         this.effectComposer.render(this.deltaTime);
         if (ENGINE_DEBUG_MODE)
             this.fpsDisplay.end();
-    }
-
-    private static hideFontPreload(): void {
-        const collection: HTMLCollection =
-            document.getElementsByClassName("fontPreload");
-
-        // tslint:disable-next-line:prefer-for-of
-        for (let i: number = collection.length - 1; i >= 0; i--) {
-            collection[i].parentNode.removeChild(collection[i]);
-        }
     }
 }

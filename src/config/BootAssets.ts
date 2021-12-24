@@ -1,5 +1,8 @@
-type LoaderType = "obj" | "obj/mtl" | "pixi" | "fbx";
+export enum LoaderType {
+  OBJ = "obj",
+  OBJMTL = "obj/mtl",
+  PIXI = "pixi",
+  FBX = "fbx",
+}
 
-export const BootAssets: Array<{key: string, path: string, type: LoaderType}> = [
-
-];
+export const BootAssets: Array<{key: string, path: string, type:  LoaderType}> = [];

@@ -1,5 +1,5 @@
 import { OBJLoader as ThreeOBJLoader } from "three/examples/jsm/loaders/OBJLoader";
-import { Loader } from "./Loader";
+import { ILoaderReturnValue, Loader } from "./Loader";
 import { Group } from "three";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader";
 import { LoaderStatus } from "./LoaderStatus";
@@ -67,23 +67,33 @@ export class OBJLoader extends Loader<Group> {
         this.activeQueueProgress = {};
     }
 
-    load(): Promise<void> {
+    load(
+        _onProgress?: (progress: number) => void
+    ): Promise<ILoaderReturnValue> {
         let done = false;
-        return new Promise<void>((_resolve, _reject) => {
-            const resolve: () => void = () => {
+        const returnValue: ILoaderReturnValue = {};
+        let _cacheCounter = -1;
+        return new Promise<ILoaderReturnValue>((_resolve, _reject) => {
+            const onProgress: () => void = () => {
                 const keys = Object.keys(this.activeQueueProgress);
+                if (keys.length === 0) return;
                 const len = keys
                     .map((e) => this.activeQueueProgress[e])
                     .filter((e) => e.status === LoaderStatus.SUCCESS || e.status === LoaderStatus.ERROR)
                     .length;
 
-                if (len !== Object.keys(this.activeQueueProgress).length) {
+                if (_cacheCounter !== len) {
+                    _cacheCounter = len;
+                    _onProgress ? _onProgress((len / keys.length) * 100) : undefined;
+                }
+
+                if (len !== keys.length) {
                     // not done yet
-                    setTimeout(() => resolve(), 100);
+                    setTimeout(() => onProgress(), 100);
                     OBJLoader.log("Waiting to load more");
                     return;
                 } else if (!done) {
-                    OBJLoader.log("Done loading");
+                    OBJLoader.log("Done loading obj queue");
                     done = true;
                 } else {
                     return;
@@ -100,17 +110,24 @@ export class OBJLoader extends Loader<Group> {
                 });
 
                 this._reset();
-                _resolve();
+                _resolve(returnValue);
             }
 
             Object.keys(this.activeQueueProgress).forEach((_key: string) => {
                 const mtlLoaderProgress = this.activeQueueProgress[_key];
-
+                returnValue[_key] = {success: false};
                 if (mtlLoaderProgress.type !== "mtl") {
                     if (mtlLoaderProgress.type === "obj") {
                         this.loadResource(mtlLoaderProgress)
-                            .then(() => OBJLoader.log(`Loaded model ${mtlLoaderProgress.path}`))
-                            .then(() => resolve());
+                            .then(() => {
+                                OBJLoader.log(`Loaded model ${mtlLoaderProgress.path}`);
+                                returnValue[_key].success = true;
+                            })
+                            .then(() => onProgress())
+                            .catch((err) => {
+                                console.error(err);
+                                returnValue[_key].error = err;
+                            });
                     }
                     return;
                 }
@@ -126,7 +143,7 @@ export class OBJLoader extends Loader<Group> {
                     })
                     .then(() => this.loadResource(objLoaderProgress))
                     .then(() => OBJLoader.log(`Loaded model ${objLoaderProgress.path}`))
-                    .then(() => resolve());
+                    .then(() => onProgress());
             });
         })
     }
@@ -165,6 +182,10 @@ export class OBJLoader extends Loader<Group> {
 
     private existsInCache(_key: string): boolean {
         return Boolean(this._cache[_key]);
+    }
+
+    public isAssetLoaded(_key: string): boolean {
+        return this.existsInCache(_key);
     }
 
 

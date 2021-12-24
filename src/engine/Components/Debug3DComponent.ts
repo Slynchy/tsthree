@@ -8,6 +8,7 @@ import {
     PlaneGeometry,
     SphereGeometry
 } from "three";
+import { Debug3DSystem } from "../Systems/Debug3DSystem";
 
 export enum Debug3DShapes {
     SPHERE,
@@ -18,6 +19,7 @@ export enum Debug3DShapes {
 
 export class Debug3DComponent extends Component {
     public static readonly id: string = "Debug3DComponent";
+    protected static readonly _system: typeof Debug3DSystem = Debug3DSystem;
     private _geometry: BufferGeometry;
     private _mesh: Mesh;
 

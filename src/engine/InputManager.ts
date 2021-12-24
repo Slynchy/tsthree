@@ -1,7 +1,7 @@
 import { Engine } from "./Engine";
 import { MouseOverObject } from "./Types/MouseOverObject";
 import { MouseOverState } from "./Types/MouseOverState";
-import { PIXIConfig } from "../config/PIXIConfig";
+import { tsthreeConfig } from "../config/tsthreeConfig";
 import { Vector2 as Vec2 } from "three";
 import isMobile from "is-mobile";
 
@@ -27,8 +27,8 @@ export class InputManager {
         document.addEventListener("keyup", (e: KeyboardEvent) => this.onKeyUp(e));
         document.body.appendChild(
             this.clickHandlerElement = this.createAndSetupClickHandler(
-                PIXIConfig.width,
-                PIXIConfig.height,
+                tsthreeConfig.width,
+                tsthreeConfig.height,
             )
         );
 

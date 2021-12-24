@@ -1,7 +1,6 @@
 import { Component } from "./Component";
 import { InteractionEvent } from "./Types/InteractionEvent";
 import { HelperFunctions } from "./HelperFunctions";
-import { getSystem } from "./Systems/SystemMap";
 import { Object3D } from "three";
 
 // tslint:disable-next-line:no-any
@@ -24,6 +23,7 @@ export class GameObject extends Object3D {
         }
         this.components.push(_component);
         this.components[this.components.length - 1].parent = (this);
+        _component.getSystem().onAwake(_component);
         _component.onAttach();
         for(let i = 0; i < this.components.length - 1; i++) {
             this.components[i].onComponentAttached(
@@ -31,7 +31,6 @@ export class GameObject extends Object3D {
                 _component
             );
         }
-        getSystem(_component).onAwake(_component);
         this.fireEvent("_onAddComponent", _component);
     }
 
@@ -105,15 +104,23 @@ export class GameObject extends Object3D {
         }
         this._onDestroy = null;
         for (const comp of this.components) {
-            getSystem(comp).destroy(comp);
+            comp.getSystem().destroy(comp);
         }
+        this.removeAllComponents();
+        this.traverse((e) => {
+            if (e === this) return;
+            // @ts-ignore
+            if (e.destroy)
+                // @ts-ignore
+                e.destroy();
+        })
         this.components.length = 0;
         this._queuedForDestruction = true;
     }
 
     public onStep(_dt: number): void {
         for (const component of this.components) {
-            getSystem(component).onStep(_dt, component);
+            component.getSystem().onStep(_dt, component);
         }
     }
 

@@ -9,7 +9,7 @@
     "allowJs": true,
     "sourceMap": true,
     "paths": {},
-    "typeRoots": [ "./types", "./node_modules/@types"]
+    "typeRoots": [ "./types", "./lib/types", "./node_modules/@types"]
   },
   "exclude": ["webpack.dev.config.js", "webpack.prod.config.js", "build/**/*"]
 }

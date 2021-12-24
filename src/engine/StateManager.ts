@@ -25,7 +25,8 @@ export class StateManager {
         }
         this.currentState = _state;
         this.currentState.getScene().onApply(this.engine);
-        this.currentState.onAwake(this.engine, _params || undefined);
+        this.currentState.preload(this.engine)
+            .then(() => this.currentState.onAwake(this.engine, _params || undefined))
     }
 
     public onStep(): void {

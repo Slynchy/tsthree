@@ -7,7 +7,8 @@
     "build": "npx webpack --config webpack.dev.config.js",
     "build-prod": "npx webpack --config webpack.prod.config.js",
     "dev": "npx webpack-dev-server --config webpack.dev.config.js",
-    "lint": "eslint ./src --ext .ts"
+    "lint": "eslint ./src --ext .ts",
+    "preversion": "git add ."
   },
   "keywords": [
     "typescript",
@@ -20,7 +21,9 @@
     "js",
     "ts",
     "javascript",
-    "framework"
+    "framework",
+    "game",
+    "gamedev"
   ],
   "author": "Sam Lynch",
   "license": "MIT",

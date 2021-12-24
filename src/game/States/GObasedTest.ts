@@ -1,16 +1,14 @@
 import { Engine, GameObject, State, UIManager } from "../../tsthree";
-import { PIXIConfig } from "../../config/PIXIConfig";
+import { tsthreeConfig as PIXIConfig } from "../../config/tsthreeConfig";
 import { Debug3DComponent, Debug3DShapes } from "../../engine/Components/Debug3DComponent";
-import { Camera, MeshBasicMaterial, Object3D, Raycaster, Vector2 } from "three";
+import {Camera, MeshBasicMaterial, Object3D, Raycaster, Vector2} from "three";
 import { max_sphere_scale, min_sphere_scale, TargetSphere } from "../GameObjects/TargetSphere";
 import { GAME_DEBUG_MODE } from "../../engine/Constants/Constants";
-import { Container, Graphics, Sprite, Text, TextMetrics, TextStyle } from "pixi.js";
+import { Container, Graphics, Sprite, Text, Texture, TextMetrics, TextStyle, InteractionEvent } from "pixi.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass";
 import { Background } from "../GameObjects/Background";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
-// import { BadTVShader } from "../../../lib/threejs_shaders/BadTVShader";
 import { lerp } from "three/src/math/MathUtils";
-import InteractionEvent = PIXI.interaction.InteractionEvent;
 
 const num_of_spheres = 25;
 let sphere_timer = 150;
@@ -183,7 +181,7 @@ export class GObasedTest extends State {
         );
         _engine.getUIManager().addObject(this.scoreText);
 
-        const crt = new Sprite(_engine.getPIXITexture("crt"));
+        const crt = new Sprite(_engine.getPIXIResource("crt") as Texture);
         crt.interactive = true;
         crt.width = PIXIConfig.width;
         crt.height = PIXIConfig.height;
@@ -355,5 +353,9 @@ export class GObasedTest extends State {
 
         // @ts-ignore
         this.scene.onStep(_engine);
+    }
+
+    preload(_engine: Engine): Promise<void> {
+        return Promise.resolve(undefined);
     }
 }

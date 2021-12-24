@@ -5,9 +5,10 @@ import {
     Container as PIXIContainer,
     DisplayObject,
     Graphics,
+    InteractionManager,
     Renderer as PIXIRenderer
 } from "pixi.js";
-import { PIXIConfig } from "../config/PIXIConfig";
+import { tsthreeConfig } from "../config/tsthreeConfig";
 import { ENGINE_DEBUG_MODE } from "./Constants/Constants";
 
 export class UIManager {
@@ -17,9 +18,10 @@ export class UIManager {
     private stage: PIXIContainer;
     private engine: Engine;
     private changeDetected: boolean = false;
+    private interactionManager: InteractionManager;
     private sceneObjects: unknown[] = [];
 
-    constructor(_engine: Engine, _config: typeof PIXIConfig) {
+    constructor(_engine: Engine, _config: typeof tsthreeConfig) {
         this.engine = _engine;
         this.engine.getTicker().add(() => this.onStep());
         this.canvasElement = document.createElement("canvas") as HTMLCanvasElement;
@@ -31,17 +33,17 @@ export class UIManager {
             antialias: _config.antialias
         });
 
+        this.interactionManager = this.renderer2d.plugins.interaction;
         this.stage = new PIXIContainer();
     }
 
-    public static configureRenderer2d(_config: typeof PIXIConfig, _engine: Engine, _renderer: PIXIRenderer): void {
+    public static configureRenderer2d(_config: typeof tsthreeConfig, _engine: Engine, _renderer: PIXIRenderer): void {
         const context = _engine.getRenderer().getContext();
-        const contextCanvas: HTMLCanvasElement = context.canvas as HTMLCanvasElement;
         // _renderer.resolution = (_config.devicePixelRatio);
         const w = context.canvas.width;
         const h = context.canvas.height;
-        const sW = parseInt(contextCanvas.style.width);
-        const sH = parseInt(contextCanvas.style.height);
+        const sW = parseInt(context.canvas.style.width);
+        const sH = parseInt(context.canvas.style.height);
         // _renderer.view.width = w;
         // _renderer.view.height = h;
         _renderer.resize(_config.width, _config.height);
@@ -49,7 +51,7 @@ export class UIManager {
         _renderer.view.style.height = sH + "px";
     }
 
-    private static hookResize(_config: typeof PIXIConfig, _engine: Engine, _renderer: PIXIRenderer): void {
+    private static hookResize(_config: typeof tsthreeConfig, _engine: Engine, _renderer: PIXIRenderer): void {
         const onResize = () => UIManager.configureRenderer2d(
             _config, _engine, _renderer
         );
@@ -63,6 +65,10 @@ export class UIManager {
 
     public getRenderer(): PIXIRenderer {
         return this.renderer2d;
+    }
+
+    public getInteractionManager(): InteractionManager {
+        return this.interactionManager;
     }
 
     public removeObject(obj: DisplayObject): void {
@@ -83,7 +89,7 @@ export class UIManager {
         // profit?
         document.body.appendChild(this.canvasElement);
 
-        UIManager.hookResize(PIXIConfig, _engine, this.renderer2d);
+        UIManager.hookResize(tsthreeConfig, _engine, this.renderer2d);
 
         if (ENGINE_DEBUG_MODE) {
             const debugGrid = new Graphics();
@@ -120,6 +126,10 @@ export class UIManager {
         }
     }
 
+    /**
+     * todo: fix the use of `sceneObjects` here like with the 3D scene traversal?
+     * @param obj
+     */
     public addObject(obj: DisplayObject): void {
         try {
             HelperFunctions.addToStage2D(this.stage, obj);
@@ -146,7 +156,7 @@ export class UIManager {
     }
 
     private _update(): void {
-        this.renderer2d.clear();
+        this.renderer2d.clear(); // fixme: is this clear() needed?
         this.renderer2d.render(this.stage);
         this.changeDetected = false;
     }

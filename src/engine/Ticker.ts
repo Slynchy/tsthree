@@ -1,5 +1,8 @@
 type TickerFunction = (_dt: number) => void;
 
+/**
+ * @deprecated Should just use PIXI.Ticker (or _engine.ticker) for simplicity and less code-duplication.
+ */
 export class Ticker {
     private _maxFPS: number = 60;
     private readonly _tasks: TickerFunction[] = [];

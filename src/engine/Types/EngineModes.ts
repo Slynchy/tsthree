@@ -1,4 +1,4 @@
-export enum EngineModes {
+export enum ENGINE_MODES {
     PIXI,
     THREEJS
 }

@@ -2,23 +2,21 @@ import { GameObject } from "./GameObject";
 import {
     Container as PIXIContainer,
     DisplayObject,
+    InteractionEvent as PIXIInteractionEvent,
     ObservablePoint,
     Sprite as PIXISprite
 } from "pixi.js";
-
-import * as PIXI from "pixi.js";
-type InteractionEvent = PIXI.interaction.InteractionEvent;
-
+import { InteractionEvent } from "./Types/InteractionEvent";
 import { SpriteComponent } from "./Components/SpriteComponent";
 import { ContainerComponent } from "./Components/ContainerComponent";
 import { Container } from "./Container";
 import { Engine } from "./Engine";
 import {
+    Box3,
     BufferGeometry,
     Camera,
     Euler,
     Group,
-    Intersection,
     Line,
     LineBasicMaterial,
     Mesh,
@@ -28,10 +26,13 @@ import {
     Vector2,
     Vector3
 } from "three";
-import { DEFAULT_CAMERA_FOV, ENGINE_DEBUG_MODE } from "./Constants/Constants";
+import { DEFAULT_CAMERA_FOV } from "./Constants/Constants";
 import { degToRad, radToDeg } from "three/src/math/MathUtils";
-import { IVector2 } from "../tsthree";
+import { DIRECTION } from "./Types/Direction";
+import { IVector2, IVector3 } from "../tsthree";
 import * as TWEEN from '@tweenjs/tween.js'
+import { tsthreeConfig } from "../config/tsthreeConfig";
+import { BoxColliderComponent } from "./Components/BoxColliderComponent";
 
 export interface TooltipProperties {
     x: number;
@@ -41,6 +42,11 @@ export interface TooltipProperties {
     title: string;
     body: string;
     dontAddToUI?: boolean;
+}
+
+export interface ITweenAnimationReturnValue {
+    cancel: () => void;
+    promise: Promise<void>;
 }
 
 declare const window: Window & {
@@ -59,6 +65,28 @@ export class HelperFunctions {
         }
     }
 
+    public static getDirectionFromSize(_e: Box3): DIRECTION.RIGHT | DIRECTION.UP {
+        const size: Vector3 = new Vector3();
+        _e.getSize(size);
+        if (size.x > size.y) {
+            return DIRECTION.UP;
+        } else {
+            return DIRECTION.RIGHT;
+        }
+
+    }
+
+    public static waitForTruth(func: () => boolean, refreshRateMs: number = 15): Promise<void> {
+        return new Promise((resolve) => {
+            const interval = setInterval(() => {
+                if (func()) {
+                    clearInterval(interval);
+                    resolve();
+                }
+            }, refreshRateMs);
+        });
+    }
+
     /**
      * Returns array of enum keys
      * @author https://www.petermorlion.com/iterating-a-typescript-enum/
@@ -75,6 +103,55 @@ export class HelperFunctions {
         }
         // @ts-ignore
         return result;
+    }
+
+    public static roundToDecimalPlaces(num: number, decimalPlaces: number = 1): number {
+        const factor = (Math.pow(10, decimalPlaces));
+        return Math.round(num * factor) / factor;
+    }
+
+    public static getDirectionFromTwoIVecs(vecA: IVector2, vecB: IVector2, _z: number = 0.1): DIRECTION {
+        return HelperFunctions.getDirectionFromTwoPoints(
+            new Vector3(
+                vecA.x,
+                vecA.y,
+                _z
+            ),
+            new Vector3(
+                vecB.x,
+                vecB.y,
+                _z
+            )
+        );
+    }
+
+    public static getDirectionFromTwoPoints(vecA: Vector2 | Vector3, vecB: Vector2 | Vector3): DIRECTION {
+        const _direction = vecA.clone()
+            .sub(vecB as Vector2 & Vector3);
+        _direction.set(
+            Math.round(_direction.x * 10) / 10,
+            Math.round(_direction.y * 10) / 10,
+            0,
+        )
+        let direction: DIRECTION;
+        if (Math.abs(_direction.y) < Math.abs(_direction.x)) {
+            if (
+                _direction.x < 0
+            ) {
+                direction = DIRECTION.DOWN;
+            } else {
+                direction = DIRECTION.UP;
+            }
+        } else {
+            if (
+                _direction.y < 0
+            ) {
+                direction = DIRECTION.RIGHT;
+            } else {
+                direction = DIRECTION.LEFT;
+            }
+        }
+        return direction;
     }
 
     /**
@@ -116,12 +193,12 @@ export class HelperFunctions {
     }
 
     public static NearestPointOnFiniteLine(start: Vector3, end: Vector3, pnt: Vector3): Vector3 {
-        var line = end.sub(start);
-        var len = Math.sqrt(line.x * line.x + line.y * line.y + line.z * line.z);
+        let line = end.sub(start);
+        const len = Math.sqrt(line.x * line.x + line.y * line.y + line.z * line.z);
         line = line.normalize();
 
-        var v = pnt.sub(start);
-        var d = v.dot(line);
+        const v = pnt.sub(start);
+        let d = v.dot(line);
         d = HelperFunctions.clamp(d, 0, len);
         return line.multiply(new Vector3(d, d, d)).add(start);
     }
@@ -135,40 +212,52 @@ export class HelperFunctions {
         _obj.buttonMode = !_skipButtonMode;
     }
 
-    public static parseInteractionEvent(ev: InteractionEvent, canvasWidth?: number, canvasHeight?: number): PointerEvent {
-        let e: PointerEvent;
+    public static parseInteractionEvent(ev: PIXIInteractionEvent, canvasWidth?: number, canvasHeight?: number): IVector2 {
+        const width = canvasWidth ? canvasWidth : parseInt(
+            HelperFunctions.getMainCanvasElement().style.width
+        );
+        const height = canvasHeight ? canvasHeight : parseInt(
+            HelperFunctions.getMainCanvasElement().style.height
+        );
+        const scaleFactor = HelperFunctions.calculateScaleFactor({x: width, y: height});
 
-        let width = canvasWidth;
-        let height = canvasHeight;
-
-        if (!width) {
-            width = parseInt(
-                HelperFunctions.getMainCanvasElement().style.width
-            );
-        }
-        if (!height) {
-            height = parseInt(
-                HelperFunctions.getMainCanvasElement().style.height
-            );
-        }
-
-        if (ev.data.originalEvent instanceof TouchEvent) {
-            const factorX = width / canvasWidth;
-            const factorY = height / canvasHeight;
-            e = {
-                offsetX: ev.data.global.x * factorX,
-                offsetY: ev.data.global.y * factorY,
-            } as PointerEvent
-        } else {
-            e = {
-                offsetX: ev.data.global.x,
-                offsetY: ev.data.global.y,
-            } as PointerEvent
-        }
-        return e;
+        return {
+            x: ev.data.global.x * scaleFactor,
+            y: ev.data.global.y * scaleFactor,
+        };
     }
 
-    public static raycastFromInteractionEvent(ev: InteractionEvent, camera: Camera, objectsToCheck: GameObject[], screenSize?: Vector2): Intersection[] | null {
+    public static getUICanvas(): HTMLCanvasElement {
+        return document.getElementById("ui-canvas") as HTMLCanvasElement;
+    }
+
+    public static calculateScaleFactor(_screenSize: IVector2): number {
+        let scaleFactor: number;
+        const canvas3dWidth = _screenSize ? _screenSize.x : parseInt(
+            HelperFunctions.getMainCanvasElement().style.width
+        );
+        const canvas3dHeight = _screenSize ? _screenSize.y : parseInt(
+            HelperFunctions.getMainCanvasElement().style.height
+        );
+        switch (tsthreeConfig.autoResize) {
+            case "height":
+                scaleFactor = canvas3dHeight / HelperFunctions.getUICanvas().height;
+                break;
+            case "none":
+            case "width":
+            default:
+                scaleFactor = canvas3dWidth / HelperFunctions.getUICanvas().width;
+                break;
+        }
+        return scaleFactor;
+    }
+
+    public static raycastFromInteractionEvent(
+        ev: PIXIInteractionEvent,
+        camera: Camera,
+        objectsToCheck: Array<Box3 | BoxColliderComponent>,
+        screenSize?: IVector2
+    ): GameObject | Box3 | null {
         const raycaster = new Raycaster();
         const width = screenSize ? screenSize.x : parseInt(
             HelperFunctions.getMainCanvasElement().style.width
@@ -176,13 +265,31 @@ export class HelperFunctions {
         const height = screenSize ? screenSize.y : parseInt(
             HelperFunctions.getMainCanvasElement().style.height
         );
-        let e: PointerEvent = HelperFunctions.parseInteractionEvent(ev, width, height);
+        const e: IVector2 = HelperFunctions.parseInteractionEvent(ev, width, height);
         const mouse = new Vector2(
-            (e.offsetX / width) * 2 - 1,
-            -(e.offsetY / height) * 2 + 1
+            (e.x / width) * 2 - 1,
+            -(e.y / height) * 2 + 1
         );
         raycaster.setFromCamera(mouse, camera);
-        return raycaster.intersectObjects(objectsToCheck);
+
+        const firstValidObj = objectsToCheck.find((e) => Boolean(e));
+
+        if (firstValidObj instanceof BoxColliderComponent) {
+            for (let i = 0; i < objectsToCheck.length; i++) {
+                if (!objectsToCheck[i]) continue;
+                if (raycaster.ray.intersectsBox((objectsToCheck[i] as BoxColliderComponent)._box))
+                    return (objectsToCheck[i] as BoxColliderComponent).parent;
+            }
+        } else if (firstValidObj instanceof Box3) {
+            for (let i = 0; i < objectsToCheck.length; i++) {
+                if (!objectsToCheck[i]) continue;
+                if (raycaster.ray.intersectsBox(objectsToCheck[i] as Box3)) return (objectsToCheck[i] as Box3)
+            }
+        } else {
+            console.warn("Empty array passed to raycastFromInteractionEvent");
+        }
+
+        return null;
     }
 
     public static deg2rad(num: number): number {
@@ -221,7 +328,7 @@ export class HelperFunctions {
         }
     }
 
-    public static addToStage(stage: Group, obj: GameObject, unsafe?: boolean): void {
+    public static addToStage(stage: Group, obj: GameObject | Object3D, unsafe?: boolean): void {
         // Sam - since making GameObject just extend Object3D, this function got a bit easier
         stage.add(obj);
     }
@@ -258,8 +365,7 @@ export class HelperFunctions {
                     x: _target.x + ((Math.random() * 20) - 10),
                     y: _target.y + ((Math.random() * 20) - 10)
                 },
-                0.4,
-                window.ENGINE.getWASM("lerp").lerp
+                66
             );
             await HelperFunctions.lerpToPromise(
                 _target,
@@ -267,16 +373,127 @@ export class HelperFunctions {
                     x: origPos.x,
                     y: origPos.y
                 },
-                0.4,
-                window.ENGINE.getWASM("lerp").lerp
+                66
             );
         }
         _target.x = origPos.x;
         _target.y = origPos.y;
     }
 
+    public static createBox3(_pos: IVector2, _size: IVector2 = {x: 1, y: 1}): Box3 {
+        const box3 = new Box3();
+        box3.set(
+            new Vector3(
+                (_pos.x),
+                (_pos.y),
+                0
+            ),
+            new Vector3(
+                (_pos.x) + _size.x,
+                (_pos.y) + _size.y,
+                2
+            ),
+        );
+        return box3;
+    }
+
+    public static getDirectionOfSwipe(
+        _pointerUpEvent: PIXIInteractionEvent,
+        _pointerDownPos: Vector2 | PIXIInteractionEvent,
+        _scrSize?: IVector2
+    ): DIRECTION {
+        const parsedEvent: IVector2 = HelperFunctions.parseInteractionEvent(_pointerUpEvent, _scrSize?.x, _scrSize?.y);
+        const eventCoords = new Vector2(parsedEvent.x, parsedEvent.y);
+
+        let _direction: Vector2;
+        if (_pointerDownPos instanceof Vector2) {
+            _direction = eventCoords.sub(new Vector2(_pointerDownPos.x, _pointerDownPos.y)).normalize();
+        } else {
+            const parsedDownEvent = HelperFunctions.parseInteractionEvent(_pointerDownPos);
+            _direction = eventCoords.sub(new Vector2(parsedDownEvent.x, parsedDownEvent.y)).normalize();
+        }
+
+        let swipeDirection: DIRECTION;
+        if (Math.abs(_direction.y) < Math.abs(_direction.x)) {
+            if (
+                _direction.x < 0
+            ) {
+                swipeDirection = DIRECTION.LEFT;
+            } else {
+                swipeDirection = DIRECTION.RIGHT;
+            }
+        } else {
+            if (
+                _direction.y < 0
+            ) {
+                swipeDirection = DIRECTION.UP;
+            } else {
+                swipeDirection = DIRECTION.DOWN;
+            }
+        }
+
+        return swipeDirection;
+    }
+
     public static lerp(v0: number, v1: number, t: number): number {
         return v0 * (1 - t) + v1 * t;
+    }
+
+    public static TWEENVec2AsPromise(
+        _target: Vector2 | ObservablePoint | IVector2,
+        _destVal: Vector2 | ObservablePoint | IVector2,
+        _func: typeof TWEEN.Easing.Linear.None,
+        _duration: number = 1000,
+        _onTick?: (obj?: any, elapsed?: number) => boolean
+    ): ITweenAnimationReturnValue {
+        const xPromise = HelperFunctions.TWEENAsPromise(
+            _target, "x", _destVal.x, _func, _duration, _onTick
+        );
+        const yPromise = HelperFunctions.TWEENAsPromise(
+            _target, "y", _destVal.y, _func, _duration
+        );
+
+        return {
+            promise: Promise.all([
+                xPromise.promise,
+                yPromise.promise,
+            ]) as unknown as Promise<void>,
+            cancel: () => {
+                xPromise.cancel();
+                yPromise.cancel();
+            }
+        };
+    }
+
+    public static TWEENVec3AsPromise(
+        _target: Vector3 | Euler | IVector3,
+        _destVal: Vector3 | Euler | IVector3,
+        _func: typeof TWEEN.Easing.Linear.None,
+        _duration: number = 1000,
+        _onTick?: (obj?: any, elapsed?: number) => boolean
+    ): ITweenAnimationReturnValue {
+        const xPromise = HelperFunctions.TWEENAsPromise(
+            _target, "x", _destVal.x, _func, _duration, _onTick
+        );
+        const yPromise = HelperFunctions.TWEENAsPromise(
+            _target, "y", _destVal.y, _func, _duration
+        );
+        const zPromise = HelperFunctions.TWEENAsPromise(
+            _target, "z", _destVal.z, _func, _duration
+        );
+
+        return {
+            promise: Promise.all([
+                xPromise.promise,
+                yPromise.promise,
+                zPromise.promise
+            ]) as unknown as Promise<void>,
+            cancel: () => {
+                xPromise.cancel();
+                yPromise.cancel();
+                zPromise.cancel();
+            }
+        };
     }
 
     /**
@@ -288,6 +505,7 @@ export class HelperFunctions {
      * @param _destVal
      * @param _func
      * @param _duration
+     * @param _onTick
      * @constructor
      */
     public static TWEENAsPromise(
@@ -295,25 +513,28 @@ export class HelperFunctions {
         _key: string,
         _destVal: number,
         _func: typeof TWEEN.Easing.Linear.None,
-        _duration: number = 1000
-    ): {
-        promise: Promise<void>,
-        cancel: Function
-    } {
+        _duration: number = 1000,
+        _onTick?: (obj?: any, elapsed?: number) => boolean | void
+    ): ITweenAnimationReturnValue {
         const start = {};
         const dest = {};
-        let tween: TWEEN.Tween<{}>;
+        // let tween: TWEEN.Tween<{}>;
         // @ts-ignore
         start[_key] = _target[_key];
         // @ts-ignore
         dest[_key] = _destVal;
 
-        tween = new TWEEN.Tween(start)
+        const tween = new TWEEN.Tween(start)
             .to(dest, _duration)
-            .onUpdate(() => {
-                _target[_key]
-                    // @ts-ignore
-                    = start[_key];
+            .onUpdate((e, t) => {
+                const cont: boolean = _onTick ? _onTick(e, t) as boolean : true;
+                if (cont)
+                    _target[_key]
+                        // @ts-ignore
+                        = start[_key];
+                else {
+                    tween.stop();
+                }
             })
             .easing(_func);
 
@@ -357,10 +578,9 @@ export class HelperFunctions {
         return new Promise<void>(async (resolve: Function, reject: Function): Promise<void> => {
             let progress: number = 0;
             await new Promise((resolve2: Function): void => {
-                let intervalID: unknown;
-                intervalID = setInterval(() => {
+                const intervalID = setInterval(() => {
                     progress = Math.min(progress + (speed * (_engine?.deltaTime || 1)), 1);
-                    if(!_target) reject();
+                    if (!_target) reject();
                     _target[_key] = tweenFunc(origValue, _destValue, progress);
                     if (progress === 1) {
                         // @ts-ignore
@@ -380,54 +600,30 @@ export class HelperFunctions {
         });
     }
 
+    /**
+     * @deprecated Use `HelperFunctions.TWEENVec3AsPromise`
+     * @param _sprite
+     * @param _destination
+     * @param _duration
+     */
     public static lerpToPromise(
         _sprite: Vector2 | Vector3 | ObservablePoint,
         _destination: { x: number, y: number, z?: number },
-        _speed?: number,
-        _lerpFunc?: Function,
-        _engine?: Engine
+        _duration: number = 1000
     ): Promise<void> {
-        const speed: number = _speed || 0.01;
-        let origPos: Vector2 | Vector3;
-        if(_sprite instanceof Vector3) {
-            origPos = new Vector3(_sprite.x, _sprite.y, _sprite.z);
-        } else {
-            origPos = new Vector2(_sprite.x, _sprite.y);
-        }
-        const lerpFunc: Function = _lerpFunc || HelperFunctions.lerp;
 
-        return new Promise<void>(async (resolve: Function): Promise<void> => {
-            let progress: number = 0;
-            await new Promise((resolve2: Function): void => {
-                let intervalID: unknown;
-                intervalID = setInterval(() => {
-                    progress = Math.min(progress + (speed * (_engine?.deltaTime || 1)), 1);
-                    _sprite.x = lerpFunc(origPos.x, _destination.x, progress);
-                    _sprite.y = lerpFunc(origPos.y, _destination.y, progress);
-                    if (_sprite instanceof Vector3) {
-                        _sprite.z = lerpFunc((origPos as Vector3).z, _destination.z, progress);
-                    }
-                    if (progress === 1) {
-                        // @ts-ignore
-                        clearInterval(intervalID);
-                        resolve2();
-                    }
-                }, 0);
-            });
-            _sprite.x = _destination.x;
-            _sprite.y = _destination.y;
-            if (_sprite instanceof Vector3) {
-                _sprite.z = _destination.z;
-            }
-            resolve();
-        });
+        return HelperFunctions.TWEENVec3AsPromise(
+            _sprite as Vector3,
+            _destination instanceof Vector3 ? _destination : new Vector3(_destination.x, _destination.y, _destination.z),
+            TWEEN.Easing.Linear.None,
+            _duration
+        ).promise as unknown as Promise<void>;
     }
 
     /**
      * @param self
      * @param propKey
      */
-    // @ts-ignore
     public static createInteractionEvent<T>(self: object, propKey: string): InteractionEvent<T> {
         return {
             add: (prop: T): string => {
