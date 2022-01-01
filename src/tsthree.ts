@@ -35,7 +35,7 @@ export { BreadthFirst } from "./engine/ModularPathFinding/BreadthFirst/BreadthFi
 // Components
 export { SpriteComponent } from "./engine/Components/SpriteComponent";
 export { BoxColliderComponent } from "./engine/Components/BoxColliderComponent";
-export { Debug3DComponent } from "./engine/Components/Debug3DComponent";
+export { Debug3DComponent, Debug3DShapes } from "./engine/Components/Debug3DComponent";
 export { GenericAnimationComponent } from "./engine/Components/GenericAnimationComponent";
 export { InputRaycastComponent } from "./engine/Components/InputRaycastComponent";
 
