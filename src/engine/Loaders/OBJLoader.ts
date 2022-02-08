@@ -55,7 +55,7 @@ export class OBJLoader extends Loader<Group> {
 
     unload(_key: string): void {
         if (this._cache[_key])
-            delete this._cache[_key];
+            this._cache[_key] = undefined;
     }
 
     get<T>(_key: string): T {

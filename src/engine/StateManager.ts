@@ -21,7 +21,7 @@ export class StateManager {
     public setState(_state: State, _params?: unknown): void {
         if (this.currentState) {
             this.currentState.onDestroy(this.engine);
-            delete this.currentState;
+            this.currentState = undefined;
         }
         this.currentState = _state;
         this.currentState.getScene().onApply(this.engine);

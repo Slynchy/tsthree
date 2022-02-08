@@ -7,6 +7,7 @@
     "build": "npx webpack --config webpack.dev.config.js",
     "build-prod": "npx webpack --config webpack.prod.config.js",
     "dev": "npx webpack-dev-server --config webpack.dev.config.js",
+    "dev-https": "npx webpack-dev-server --config webpack.dev-https.config.js",
     "lint": "eslint ./src --ext .ts",
     "preversion": "git add ."
   },
@@ -41,6 +42,7 @@
     "dat.gui": "^0.7.7",
     "eslint": "^7.32.0",
     "file-loader": "^5.0.2",
+    "firebase": "^9.6.6",
     "html-webpack-plugin": "^3.2.0",
     "is-mobile": "^3.0.0",
     "mousetrap": "^1.6.5",

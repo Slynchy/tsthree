@@ -1,8 +1,3 @@
-export enum LoaderType {
-  OBJ = "obj",
-  OBJMTL = "obj/mtl",
-  PIXI = "pixi",
-  FBX = "fbx",
-}
+import { LoaderType } from "../engine/Types/LoaderType";
 
-export const BootAssets: Array<{key: string, path: string, type:  LoaderType}> = [];
+export const BootAssets: Array<{key: string, path: string, type: LoaderType}> = [];

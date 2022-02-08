@@ -6,10 +6,13 @@ import {
     DisplayObject,
     Graphics,
     InteractionManager,
-    Renderer as PIXIRenderer
+    Renderer as PIXIRenderer,
+    Text,
+    TextStyle
 } from "pixi.js";
 import { tsthreeConfig } from "../config/tsthreeConfig";
 import { ENGINE_DEBUG_MODE } from "./Constants/Constants";
+import { Easing } from "@tweenjs/tween.js";
 
 export class UIManager {
 
@@ -20,6 +23,7 @@ export class UIManager {
     private changeDetected: boolean = false;
     private interactionManager: InteractionManager;
     private sceneObjects: unknown[] = [];
+    private overlayGraphic: Graphics;
 
     constructor(_engine: Engine, _config: typeof tsthreeConfig) {
         this.engine = _engine;
@@ -47,8 +51,12 @@ export class UIManager {
         // _renderer.view.width = w;
         // _renderer.view.height = h;
         _renderer.resize(_config.width, _config.height);
-        _renderer.view.style.width = sW + "px";
-        _renderer.view.style.height = sH + "px";
+        // this results in clipping
+        // _renderer.view.style.width = sW + "px";
+        // _renderer.view.style.height = sH + "px";
+        // this works
+        _renderer.view.style.width = Math.min(sW, window.innerWidth) + "px";
+        _renderer.view.style.height = Math.min(sH, window.innerHeight) + "px";
     }
 
     private static hookResize(_config: typeof tsthreeConfig, _engine: Engine, _renderer: PIXIRenderer): void {
@@ -131,6 +139,7 @@ export class UIManager {
      * @param obj
      */
     public addObject(obj: DisplayObject): void {
+        if (obj.parent === this.stage) return; // already done?
         try {
             HelperFunctions.addToStage2D(this.stage, obj);
             this.sceneObjects.push(obj);
@@ -155,8 +164,79 @@ export class UIManager {
         this._update();
     }
 
+    public showOverlay(_text?: string, _skipAnim?: boolean): void {
+        if (!this.overlayGraphic) {
+            const tempOverlay = new Graphics();
+            tempOverlay.beginFill(0x010101, 0.85);
+            tempOverlay.drawRect(0, 0, tsthreeConfig.width, tsthreeConfig.height);
+            tempOverlay.endFill();
+            HelperFunctions.makeInteractive(tempOverlay, true);
+            this.overlayGraphic = tempOverlay;
+            const text = new Text(_text || "", new TextStyle({
+                fill: "#fafafa",
+                fontFamily: "Baloo-Regular",
+                fontSize: 30,
+            }));
+            text.anchor.set(0.5, 0.5);
+            text.position.set(tsthreeConfig.width / 2, tsthreeConfig.height / 2);
+            this.overlayGraphic.addChild(text);
+        }
+        this.overlayGraphic.visible = true;
+
+        if (_skipAnim) {
+            this.overlayGraphic.alpha = 1;
+        } else {
+            this.overlayGraphic.alpha = 0;
+            HelperFunctions.TWEENAsPromise(
+                this.overlayGraphic,
+                "alpha",
+                1,
+                Easing.Quadratic.Out,
+                200
+            ).promise.then(() => this.overlayGraphic.alpha = 1);
+        }
+
+        this.updateOverlay(_text);
+    }
+
+    public hideOverlay(_skipAnim?: boolean): void {
+        if (!this.overlayGraphic.visible) return;
+        if (_skipAnim) {
+            this.overlayGraphic.visible = false;
+            if (this.overlayGraphic.parent) {
+                this.overlayGraphic.parent.removeChild(this.overlayGraphic);
+            }
+        } else {
+            HelperFunctions.TWEENAsPromise(
+                this.overlayGraphic,
+                "alpha",
+                0,
+                Easing.Quadratic.Out,
+                200
+            ).promise.then(() => {
+                this.overlayGraphic.visible = false;
+                if (this.overlayGraphic.parent) {
+                    this.overlayGraphic.parent.removeChild(this.overlayGraphic);
+                }
+            });
+        }
+    }
+
+    public updateOverlay(_text?: string): void {
+        if (this.overlayGraphic.visible === false) return;
+        if (this.overlayGraphic.parent) {
+            this.overlayGraphic.parent.removeChild(this.overlayGraphic);
+        }
+        this.stage.addChild(this.overlayGraphic);
+        // fixme: could break later
+        (this.overlayGraphic.children[0] as Text).text = _text || "";
+    }
+
     private _update(): void {
-        this.renderer2d.clear(); // fixme: is this clear() needed?
+        if (this.overlayGraphic && this.overlayGraphic.visible) {
+            this.updateOverlay();
+        }
+        // this.renderer2d.clear(); // fixme: is this clear() needed?
         this.renderer2d.render(this.stage);
         this.changeDetected = false;
     }

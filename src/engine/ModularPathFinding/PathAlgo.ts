@@ -65,7 +65,7 @@ export abstract class PathAlgo {
         }
         for (const i in index) {
             if (index[i]) {
-                delete index[i];
+                index[i] = undefined;
             }
         }
         openList.length = 0;

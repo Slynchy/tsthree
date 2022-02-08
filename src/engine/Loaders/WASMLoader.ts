@@ -15,7 +15,7 @@ export class WASMLoader extends Loader<object> {
 
     unload(_key: string): void {
         if (this._cache[_key])
-            delete this._cache[_key];
+            this._cache[_key] = undefined;
     }
 
     load(

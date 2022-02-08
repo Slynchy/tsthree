@@ -1,10 +1,19 @@
 const path = require("path");
 const TerserPlugin = require("terser-webpack-plugin");
+const fs = require("fs");
 const absPathToDist = path.resolve(process.cwd(), "dist");
 
 const ENTRYPOINTS = [
     './src/index.ts'
 ];
+
+let VERSION = "0.0.0";
+try {
+    VERSION = `"${JSON.parse(fs.readFileSync("./package.json", "utf8")).version}"`
+} catch (err) {
+    console.error("Failed to parse package.json for version");
+    console.error(err);
+}
 
 const TARGET = 'web';
 
@@ -34,10 +43,15 @@ const MODULE_RULES = [
 ];
 
 const COPY_PLUGIN_SETTINGS = [
-    {from: "src/assets", to: "./assets"}
+    {from: "src/assets", to: "./assets"},
+    {from: "src/config/fbapp-config.json", to: "./fbapp-config.json"},
 ];
 
-const HTML_TEMPLATE_SETTINGS = {template: "src/config/index.html"};
+const HTML_TEMPLATE_SETTINGS = {
+    title: "Parking Jam 3D",
+    hash: true,
+    template: "src/config/index.html"
+};
 
 const MINIMIZE_SETTINGS = {
     minimize: true,
@@ -86,6 +100,7 @@ const OUTPUT_SETTINGS = {
 };
 
 module.exports = {
+    VERSION: VERSION,
     ENTRYPOINTS: ENTRYPOINTS,
     TARGET: TARGET,
     DEVSERVER_SETTINGS: DEVSERVER_SETTINGS,

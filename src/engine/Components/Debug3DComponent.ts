@@ -1,12 +1,12 @@
 import { Component } from "../Component";
 import {
-    BoxGeometry,
+    BoxBufferGeometry,
     BufferGeometry,
     Mesh,
     MeshBasicMaterial,
-    OctahedronGeometry,
-    PlaneGeometry,
-    SphereGeometry
+    OctahedronBufferGeometry,
+    PlaneBufferGeometry,
+    SphereBufferGeometry
 } from "three";
 import { Debug3DSystem } from "../Systems/Debug3DSystem";
 
@@ -17,27 +17,28 @@ export enum Debug3DShapes {
     OCTAHEDRON
 }
 
+const _DEBUG_GEOMETRY = {
+    [Debug3DShapes.SPHERE]: new SphereBufferGeometry(),
+    [Debug3DShapes.CUBE]: new BoxBufferGeometry(),
+    [Debug3DShapes.PLANE]: new PlaneBufferGeometry(),
+    [Debug3DShapes.OCTAHEDRON]: new OctahedronBufferGeometry(),
+}
+
 export class Debug3DComponent extends Component {
     public static readonly id: string = "Debug3DComponent";
     protected static readonly _system: typeof Debug3DSystem = Debug3DSystem;
-    private _geometry: BufferGeometry;
-    private _mesh: Mesh;
+    public _geometry: BufferGeometry;
+    public _mesh: Mesh;
 
     constructor(_shape: Debug3DShapes | BufferGeometry, material?: MeshBasicMaterial) {
         super();
 
         switch (_shape) {
             case Debug3DShapes.SPHERE:
-                this._geometry = new SphereGeometry();
-                break;
             case Debug3DShapes.CUBE:
-                this._geometry = new BoxGeometry();
-                break;
             case Debug3DShapes.PLANE:
-                this._geometry = new PlaneGeometry();
-                break;
             case Debug3DShapes.OCTAHEDRON:
-                this._geometry = new OctahedronGeometry();
+                this._geometry = _DEBUG_GEOMETRY[_shape];
                 break;
             default:
                 if (_shape instanceof BufferGeometry) {

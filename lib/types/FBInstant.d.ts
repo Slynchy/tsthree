@@ -9,6 +9,20 @@
  * Top level namespace for the Instant Games SDK.
  */
 declare namespace FBInstant {
+
+    let tournament: Tournament;
+
+    interface Tournament {
+
+        createAsync(_config: object): Promise<unknown>;
+
+        getTournamentsAsync(): Promise<unknown[]>;
+
+        shareAsync(_config: { score: number, data?: { [key: string]: any } }): Promise<void>;
+
+        postScoreAsync(_score: number): Promise<void>;
+    }
+
     /**
      * Contains functions and properties related to the current player.
      */
@@ -23,6 +37,11 @@ declare namespace FBInstant {
      * Contains functions and properties related to payments and purchases of game products.
      */
     let payments: Payments;
+
+    function getTournamentAsync(): Promise<{
+        getContextID: () => number;
+        getPayload: () => { [key: string]: unknown };
+    } | null>;
 
     /**
      * The current locale. Use this to determine what language the current game should be localized with.

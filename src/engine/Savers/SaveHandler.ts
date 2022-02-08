@@ -2,11 +2,14 @@ import { Saver } from "./Saver";
 import { ENGINE_DEBUG_MODE } from "../Constants/Constants";
 import { IData } from "../Types/IData";
 import { HelperFunctions } from "../HelperFunctions";
+import { tsthreeConfig } from "../../config/tsthreeConfig";
+import { PlayerDataSingleton } from "../../game/Logic/PlayerDataSingleton";
 
 export class SaveHandler {
 
     private readonly _getLatestData: (_data: Array<IData>) => IData;
     private readonly _savers: Saver[] = [];
+    private _saveIntervalID: any = undefined;
 
     constructor(_savers: Saver[], _getLatestData: (_data: Array<IData>) => IData) {
         this._savers = _savers;
@@ -21,8 +24,18 @@ export class SaveHandler {
 
     public set allowedToSave(_val: boolean) {
         this._allowedToSave = _val;
-        if (ENGINE_DEBUG_MODE) {
-            console.log("SaveHandler now " + (_val ? "" : "not ") + "allowed to save.");
+        console.log("SaveHandler now " + (_val ? "" : "not ") + "allowed to save.");
+        if (this.allowedToSave && Boolean(tsthreeConfig.autoSave) && !this._saveIntervalID) {
+            this._saveIntervalID = setInterval(() => {
+                if (PlayerDataSingleton.isDirty()) {
+                    // fixme: GAME CODE IN ENGINE CODE; sorry but deadlines :(
+                    this.save(PlayerDataSingleton.export())
+                        .catch((err) => {
+                            console.error("Failed to autosave!");
+                            console.error(err);
+                        });
+                }
+            }, tsthreeConfig.autoSave);
         }
     }
 
@@ -33,7 +46,7 @@ export class SaveHandler {
 
         return new Promise<void>((resolve: Function, reject: Function) => {
             for (let i: number = 0; i < this._savers.length; i++) {
-                let iCache = i;
+                const iCache = i;
                 const curr: Saver = this._savers[i];
 
                 curr

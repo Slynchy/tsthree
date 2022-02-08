@@ -1,5 +1,7 @@
-export const ENGINE_DEBUG_MODE: boolean = false;
-export const GAME_DEBUG_MODE: boolean = false;
+export const GAME_DEBUG_MODE: boolean = true;
+export const ENGINE_DEBUG_MODE: boolean = true;
+export const ANALYTICS_DEBUG_MODE = ENGINE_DEBUG_MODE;
+export const AD_DEBUG = ENGINE_DEBUG_MODE;
 
 export const DEFAULT_TEXTURE_B64 =
     `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAAC` +

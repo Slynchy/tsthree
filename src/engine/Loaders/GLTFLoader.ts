@@ -1,42 +1,54 @@
-import { FBXLoader as ThreeFBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 import { ILoaderReturnValue, Loader } from "./Loader";
 import { Group } from "three";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader";
 import { LoaderStatus } from "./LoaderStatus";
 import { ENGINE_DEBUG_MODE } from "../Constants/Constants";
-import MaterialCreator = MTLLoader.MaterialCreator;
+import { LoaderType } from "../Types/LoaderType";
+import { GLTF, GLTFLoader as ThreeGLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
 
 const DEBUG_MODE: boolean = ENGINE_DEBUG_MODE;
 
-export interface IFBXLoaderProgress {
+export interface IGLTFLoadingProgress {
     status: LoaderStatus,
     result: unknown,
     path: string,
-    type: "fbx",
-    loader: ThreeFBXLoader
+    type: LoaderType.GLTF,
+    loader: ThreeGLTFLoader
 }
 
-export class FBXLoader extends Loader<Group> {
+let _cached_loader: ThreeGLTFLoader = null;
 
-    private activeQueueProgress: { [key: string]: IFBXLoaderProgress };
+export class GLTFLoader extends Loader<GLTF> {
+
+    private activeQueueProgress: { [key: string]: IGLTFLoadingProgress };
     private readonly _cache: { [key: string]: Group | MTLLoader.MaterialCreator } = {};
 
     constructor() {
         super();
         this.activeQueueProgress = {};
+        _cached_loader = new ThreeGLTFLoader();
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('assets/lib/draco_gltf/');
+        _cached_loader.setDRACOLoader(dracoLoader);
+    }
+
+    private static log(str: string): void {
+        if (DEBUG_MODE)
+            console.log(str);
     }
 
     add(_key: string, _asset: string): void {
-        if(this.existsInCache(_key)) {
-            FBXLoader.log(`Resource attempted to be added with key ${_key} is already in cache`);
+        if (this.existsInCache(_key)) {
+            GLTFLoader.log(`Resource attempted to be added with key ${_key} is already in cache`);
         }
-        FBXLoader.log(`Adding ${_key}...`);
+        GLTFLoader.log(`Adding ${_key}...`);
         this.activeQueueProgress[_key] = {
             status: LoaderStatus.LOADING,
             result: null,
             path: _asset,
-            type: "fbx",
-            loader: new ThreeFBXLoader()
+            type: LoaderType.GLTF,
+            loader: _cached_loader
         };
     }
 
@@ -76,10 +88,10 @@ export class FBXLoader extends Loader<Group> {
                 if (len !== keys.length) {
                     // not done yet
                     setTimeout(() => resolve(), 100);
-                    FBXLoader.log("Waiting to load more");
+                    GLTFLoader.log("Waiting to load more");
                     return;
                 } else {
-                    FBXLoader.log("Done loading fbx queue");
+                    GLTFLoader.log("Done loading gltf queue");
                 }
 
                 // donezo
@@ -103,15 +115,17 @@ export class FBXLoader extends Loader<Group> {
             }
 
             queueKeys.forEach((_key: string) => {
-                const fbxLoaderProgress = (this.activeQueueProgress[_key]);
+                const loaderProgress = (this.activeQueueProgress[_key]);
                 returnValue[_key] = {success: false};
-                this.loadResource(fbxLoaderProgress)
+                GLTFLoader.log("Loading ")
+                this.loadResource(loaderProgress)
                     .then(() => {
-                        FBXLoader.log(`Loaded FBX ${fbxLoaderProgress.path}`);
+                        GLTFLoader.log(`Loaded GLTF ${loaderProgress.path}`);
                         returnValue[_key].success = true;
                         return resolve();
                     })
                     .catch((err) => {
+                        console.error("Encountered when loading " + this.activeQueueProgress[_key].path)
                         console.error(err);
                         returnValue[_key].error = err;
                     });
@@ -123,14 +137,13 @@ export class FBXLoader extends Loader<Group> {
         this._cache[_key] = _asset as unknown as Group;
     }
 
-    private static log(str: string): void {
-        if (DEBUG_MODE)
-            console.log(str);
+    public isAssetLoaded(_key: string): boolean {
+        return this.existsInCache(_key);
     }
 
-    private loadResource(obProg: IFBXLoaderProgress): Promise<Group | MaterialCreator> {
+    private loadResource(obProg: IGLTFLoadingProgress): Promise<GLTF> {
         return new Promise((resolve, reject) => {
-            const _loader: ThreeFBXLoader = obProg.loader;
+            const _loader: ThreeGLTFLoader = obProg.loader;
 
             _loader.load(
                 obProg.path,
@@ -153,10 +166,6 @@ export class FBXLoader extends Loader<Group> {
 
     private existsInCache(_key: string): boolean {
         return Boolean(this._cache[_key]);
-    }
-
-    public isAssetLoaded(_key: string): boolean {
-        return this.existsInCache(_key);
     }
 
 

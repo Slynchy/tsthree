@@ -23,6 +23,7 @@ import {
 } from "three";
 import { EffectComposer, Pass } from "three/examples/jsm/postprocessing/EffectComposer";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
+import { LoaderType } from "./Types/LoaderType";
 import { BootAssets } from "../config/BootAssets";
 import { OBJLoader } from "./Loaders/OBJLoader";
 import { FBXLoader } from "./Loaders/FBXLoader";
@@ -37,11 +38,24 @@ import { FBAdManager } from "./FBAdManager";
 import { FBInstantSaver } from "./Savers/FBInstantSaver";
 import { Saver } from "./Savers/Saver";
 import { AnalyticsHandler } from "./Analytics/AnalyticsHandler";
-import { FBAnalytics } from "./Analytics/FBAnalytics";
+import { FacebookAnalytics } from "./Analytics/FacebookAnalytics";
 import { BaseAnalytics } from "./Analytics/BaseAnalytics";
 import { IVector2 } from "./Types/IVector2";
+import { GLTFLoader } from "./Loaders/GLTFLoader";
+import { GLTF } from "three/examples/jsm/loaders/GLTFLoader";
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+
+import isMobile from "is-mobile";
+import { FirebaseAnalytics } from "./Analytics/FirebaseAnalytics";
+import { FIREBASE_CONFIG } from "./Constants/FirebaseConfig";
 
 export const DEFAULT_TEXTURE = ImageUtils.loadTexture(DEFAULT_TEXTURE_B64);
+
+declare global {
+    const __PRODUCTION: boolean;
+    const __VERSION: string;
+}
 
 export class Engine {
 
@@ -53,6 +67,7 @@ export class Engine {
     private readonly loader: PIXILoader;
     private readonly objLoader: OBJLoader;
     private readonly fbxLoader: FBXLoader;
+    private readonly gltfLoader: GLTFLoader;
     private readonly wasmloader: WASMLoader;
     private readonly uiManager: UIManager;
     private readonly stage: Scene;
@@ -71,14 +86,55 @@ export class Engine {
     private renderPasses: Pass[] = [];
     private mainCamera: Camera;
     private _scaleFactor: number = 1;
+    private _pauseRendering: boolean = false;
+    private _onErrorFunctions: Array<typeof window.onerror> = [];
+    private _onPromiseRejectionFunctions: Array<(ev: PromiseRejectionEvent) => void> = [];
 
     // todo: abstract tsthreeConfig
     constructor(_config: typeof tsthreeConfig) {
+        const analyticsModules: BaseAnalytics[] = [];
+        const savers: Saver[] = [];
+
         if ((window as unknown as { ENGINE: Engine }).ENGINE)
             throw new Error(ENGINE_ERROR.MULTIPLE_INSTANCE);
         if (!WEBGL.isWebGLAvailable()) throw new Error(ENGINE_ERROR.WEBGL_UNSUPPORTED);
         if (ENGINE_DEBUG_MODE && WEBGL.isWebGL2Available())
             console.log("Browser supports WebGL2");
+
+        if (_config.logErrors) {
+            // init hook
+            this._setupHookOnError();
+
+            // init firebase
+            const app = initializeApp(FIREBASE_CONFIG);
+            const analytics = getAnalytics(app);
+            analyticsModules.push(
+                new FirebaseAnalytics(analytics)
+            );
+
+            this.hookOnError((
+                _msg,
+                v1,
+                v2,
+                v3,
+                error
+            ) => {
+                if (this.analyticsHandler) {
+                    this.logEvent("Error", undefined, error ? {
+                        msg: _msg as string
+                    } : undefined);
+                }
+            });
+
+            this.hookOnPromiseRejection((ev) => {
+                if (this.analyticsHandler) {
+                    this.logEvent("PromiseReject", undefined, {
+                        reason: typeof ev.reason === "string" ? ev.reason : undefined,
+                        msg: (ev.reason as unknown as Error).message ? (ev.reason as unknown as Error).message : undefined,
+                    });
+                }
+            })
+        }
 
         this.renderer3d = new WebGLRenderer({
             alpha: true,
@@ -94,13 +150,9 @@ export class Engine {
         this.loader = new PIXILoader();
         this.objLoader = new OBJLoader();
         this.fbxLoader = new FBXLoader();
+        this.gltfLoader = new GLTFLoader();
         this.wasmloader = new WASMLoader();
         this.stage = new Scene();
-
-        const analyticsModules: BaseAnalytics[] = [];
-        const savers: Saver[] = [
-            new LocalStorageSaver(),
-        ];
 
         switch (_config.gamePlatform) {
             case "facebook":
@@ -113,10 +165,11 @@ export class Engine {
                     bannerRetries: 3
                 });
                 savers.push(new FBInstantSaver());
-                analyticsModules.push(new FBAnalytics());
+                analyticsModules.push(new FacebookAnalytics());
                 break;
             case "none":
             default:
+                savers.push(new LocalStorageSaver());
                 this.platformSdk = new DummySDK();
                 break;
         }
@@ -150,8 +203,41 @@ export class Engine {
         window.ENGINE = this;
     }
 
+    public hookOnError(_func: typeof window.onerror): void {
+        this._onErrorFunctions.push(_func);
+    }
+
+    public hookOnPromiseRejection(_func: (ev: PromiseRejectionEvent) => void): void {
+        this._onPromiseRejectionFunctions.push(_func);
+    }
+
+    public _setupHookOnError(): void {
+        window.onunhandledrejection = (
+            e: PromiseRejectionEvent
+        ) => {
+            this._onPromiseRejectionFunctions.forEach((_f) => _f(e));
+        }
+        window.onerror = (
+            _msg,
+            _url,
+            _lineNo,
+            _columnNo,
+            _error
+        ) => {
+            this._onErrorFunctions.forEach((_f) => _f(
+                _msg,
+                _url,
+                _lineNo,
+                _columnNo,
+                _error
+            ));
+        }
+    }
+
     public static configureRenderer3d(_config: typeof tsthreeConfig, _renderer: WebGLRenderer): void {
-        _renderer.setPixelRatio(_config.devicePixelRatio);
+        _renderer.setPixelRatio(
+            _config.devicePixelRatio * (isMobile() ? tsthreeConfig.scale3D.mobile : tsthreeConfig.scale3D.desktop)
+        );
         const size: IVector2 = {x: 0, y: 0};
 
         switch (_config.autoResize) {
@@ -170,11 +256,11 @@ export class Engine {
                 break;
         }
         _renderer.setSize(
-            (_config.maintainResolution ? _config.width : size.x),
-            (_config.maintainResolution ? _config.height : size.y)
+            (_config.maintainResolution ? _config.width : size.x) * (1),
+            (_config.maintainResolution ? _config.height : size.y) * (1)
         );
-        _renderer.context.canvas.style.width = `${size.x}px`;
-        _renderer.context.canvas.style.height = `${size.y}px`;
+        _renderer.getContext().canvas.style.width = `${size.x}px`;
+        _renderer.getContext().canvas.style.height = `${size.y}px`;
         _renderer.setClearColor(_config.backgroundColor);
     }
 
@@ -188,6 +274,14 @@ export class Engine {
 
     public getSaveHandler(): SaveHandler {
         return this.saveHandler;
+    }
+
+    public get renderingPaused(): boolean {
+        return this._pauseRendering;
+    }
+
+    public set renderingPaused(val: boolean) {
+        this._pauseRendering = val;
     }
 
     public static resize(elements: HTMLElement[], _config: typeof tsthreeConfig): void {
@@ -331,6 +425,12 @@ export class Engine {
         return res.clone ? res.clone(true) : res;
     }
 
+    public getGLTF(_key: string): GLTF {
+        const res = (this.gltfLoader.get(_key) as GLTF);
+        if (!res) return res;
+        return res;
+    }
+
     public setMainCamera(camera: Camera): void {
         this.mainCamera = camera;
         this.renderPasses.find((e) => {
@@ -341,12 +441,21 @@ export class Engine {
     }
 
     public logEvent(eventName: string, valueToSum?: number, parameters?: { [key: string]: string; }): void {
-        return this.analyticsHandler.logEvent(eventName, valueToSum, parameters);
+        parameters = parameters || {};
+        return this.analyticsHandler.logEvent(
+            eventName,
+            valueToSum || undefined,
+            {
+                version: __VERSION,
+                ...parameters
+            }
+        );
     }
 
     public isAssetLoaded(_key: string): boolean {
         return this.objLoader.isAssetLoaded(_key) ||
             this.fbxLoader.isAssetLoaded(_key) ||
+            this.gltfLoader.isAssetLoaded(_key) ||
             this.loader.isAssetLoaded(_key) ||
             false;
     }
@@ -404,13 +513,15 @@ export class Engine {
             throw new Error("Engine @ init() - Unknown camera type " + this.defaultCameraType);
         }
 
-        if (ENGINE_DEBUG_MODE) {
+        if (tsthreeConfig.showFPSTracker) {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const Stats = require('stats.js');
             this.fpsDisplay = new Stats();
             this.fpsDisplay.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
             document.body.appendChild(this.fpsDisplay.dom);
+        }
 
+        if (ENGINE_DEBUG_MODE) {
             console.log(`
 this.renderer3d: %O
 this.mainCamera: %O
@@ -436,13 +547,17 @@ this.wasmloader: %O
             this.hookResize();
         Engine.hideFontPreload();
 
-        return this.loadAssets(_bootAssets, (p) => this.platformSdk.setLoadingProgress(p))
+        if (ENGINE_DEBUG_MODE) {
+            console.log("Loading boot assets %o", _bootAssets);
+        }
+        return this.loadAssets(
+            _bootAssets,
+            (p) => this.platformSdk.setLoadingProgress(Math.min(99, p))
+        )
             .then(() => {
                 if (ENGINE_DEBUG_MODE) {
                     console.log("Successfully loaded bootassets");
                 }
-                this.platformSdk.setLoadingProgress(100);
-                return this.platformSdk.startGame();
             })
             .then(() => this.stateManager.setState(_initialState))
             .catch((err) => {
@@ -461,16 +576,17 @@ this.wasmloader: %O
         onResize();
     }
 
-    public loadAssets(_bootAssets: typeof BootAssets, _onProgress?: (_prog: number) => void): Promise<void> {
+    public loadAssets(_assets: typeof BootAssets, _onProgress?: (_prog: number) => void): Promise<void> {
         return new Promise<void>((_resolve: Function, _reject: Function): void => {
-            let progress = [0, 0, 0];
+            const progress = [0, 0, 0];
             const onProgress = (e: number) => {
                 return _onProgress ? _onProgress((progress[0] + progress[1] + progress[2]) / 3) : null;
             }
-            let objDone: boolean = !Boolean(_bootAssets.find((e) => e.type === "obj" || e.type === "obj/mtl"));
-            let fbxDone: boolean = !Boolean(_bootAssets.find((e) => e.type === "fbx"));
+            let objDone: boolean = !(_assets.find((e) => e.type === LoaderType.OBJ || e.type === LoaderType.OBJMTL));
+            let fbxDone: boolean = !(_assets.find((e) => e.type === LoaderType.FBX));
+            let gltfDone: boolean = !(_assets.find((e) => e.type === LoaderType.GLTF));
             const resolve: () => void = () => {
-                if (!objDone || !fbxDone) {
+                if (!objDone || !fbxDone || !gltfDone) {
                     // not done yet
                     setTimeout(() => resolve(), 16 * 10);
                     return;
@@ -478,25 +594,28 @@ this.wasmloader: %O
                 _resolve();
             }
 
-            for (const k in _bootAssets) {
-                if (!_bootAssets.hasOwnProperty(k)) continue;
-                if (_bootAssets[k]) {
-                    switch (_bootAssets[k].type) {
-                        case "obj/mtl":
-                            this.objLoader.add(_bootAssets[k].key, `./assets/${_bootAssets[k].path}`);
+            for (const k in _assets) {
+                if (!_assets.hasOwnProperty(k)) continue;
+                if (_assets[k]) {
+                    switch (_assets[k].type) {
+                        case LoaderType.OBJMTL:
+                            this.objLoader.add(_assets[k].key, `./assets/${_assets[k].path}`);
                             break;
-                        case "obj":
+                        case LoaderType.OBJ:
                             this.objLoader.add(
-                                _bootAssets[k].key,
-                                `./assets/${_bootAssets[k].path}`,
+                                _assets[k].key,
+                                `./assets/${_assets[k].path}`,
                                 true
                             );
                             break;
-                        case "pixi":
-                            this.loader.add(_bootAssets[k].key, `./assets/${_bootAssets[k].path}`);
+                        case LoaderType.PIXI:
+                            this.loader.add(_assets[k].key, `./assets/${_assets[k].path}`);
                             break;
-                        case "fbx":
-                            this.fbxLoader.add(_bootAssets[k].key, `./assets/${_bootAssets[k].path}`);
+                        case LoaderType.FBX:
+                            this.fbxLoader.add(_assets[k].key, `./assets/${_assets[k].path}`);
+                            break;
+                        case LoaderType.GLTF:
+                            this.gltfLoader.add(_assets[k].key, `./assets/${_assets[k].path}`);
                             break;
                     }
                 }
@@ -516,6 +635,13 @@ this.wasmloader: %O
                         console.log("FBX Loader done");
                 });
 
+            this.gltfLoader.load((e) => onProgress(progress[1] = e))
+                .then(() => {
+                    gltfDone = true;
+                    if (ENGINE_DEBUG_MODE)
+                        console.log("GLTF Loader done");
+                });
+
             this.loader.load((e) => onProgress(progress[2] = e))
                 .then(resolve)
                 .catch(async () => {
@@ -531,12 +657,13 @@ this.wasmloader: %O
     }
 
     private readonly mainLoop: () => void = () => {
-        if (ENGINE_DEBUG_MODE)
+        if (this.fpsDisplay)
             this.fpsDisplay.begin();
         this.stateManager.onStep();
         TWEEN.update(Date.now());
-        this.effectComposer.render(this.deltaTime);
-        if (ENGINE_DEBUG_MODE)
+        if (!this._pauseRendering)
+            this.effectComposer.render(this.deltaTime);
+        if (this.fpsDisplay)
             this.fpsDisplay.end();
     }
 }

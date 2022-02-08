@@ -21,7 +21,7 @@ export class Scene {
         obj.removeFromParent();
     }
 
-    public getStage(): unknown[] {
+    public getStageChildren(): unknown[] {
         return this.stage.children;
     }
 

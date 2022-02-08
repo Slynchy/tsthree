@@ -4,7 +4,7 @@ import { ENGINE_DEBUG_MODE } from "../Constants/Constants";
 
 export class LocalStorageSaver extends Saver {
 
-    protected _dataCache: { [key: string]: unknown };
+    protected _dataCache: object;
 
     clear(): Promise<void> {
         window.localStorage.clear();

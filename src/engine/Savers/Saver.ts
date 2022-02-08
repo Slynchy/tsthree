@@ -1,7 +1,7 @@
 import { IData } from "../Types/IData";
 
 export abstract class Saver {
-    protected abstract _dataCache: {[key: string]: unknown};
+    protected abstract _dataCache: object;
 
     constructor() {/* abstract class */
     }

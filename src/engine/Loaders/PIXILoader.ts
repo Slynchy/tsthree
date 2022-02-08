@@ -33,7 +33,7 @@ export class PIXILoader extends Loader<PIXI.LoaderResource> {
 
     public unload(_key: string): void {
         if (this._cache[_key])
-            delete this._cache[_key];
+            this._cache[_key] = undefined;
     }
 
     async load(
@@ -61,6 +61,8 @@ export class PIXILoader extends Loader<PIXI.LoaderResource> {
                             returnValue[k] = {success: false};
                         }
                         returnValue[k].success = true;
+                        if (ENGINE_DEBUG_MODE)
+                            console.log(`Loaded PIXI asset ${resources[k].url}`);
                         this.cache(k, resources[k]);
                     } else {
                         returnValue[k].success = false;

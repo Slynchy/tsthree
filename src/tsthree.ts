@@ -55,7 +55,7 @@ export { AnalyticsHandler } from "./engine/Analytics/AnalyticsHandler";
 export { IVector2 } from "./engine/Types/IVector2";
 export { IVector3 } from "./engine/Types/IVector3";
 export { AD_TYPE } from "./engine/Types/AdType";
-export { ENGINE_MODES } from "./engine/Types/EngineModes";
+export { EngineModes } from "./engine/Types/EngineModes";
 export { InteractionEvent } from "./engine/Types/InteractionEvent";
 export { IPlayerInfo } from "./engine/Types/IPlayerInfo";
 export { MouseOverObject } from "./engine/Types/MouseOverObject";

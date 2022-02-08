@@ -4,6 +4,7 @@ import {
     DisplayObject,
     InteractionEvent as PIXIInteractionEvent,
     ObservablePoint,
+    Sprite,
     Sprite as PIXISprite
 } from "pixi.js";
 import { InteractionEvent } from "./Types/InteractionEvent";
@@ -65,6 +66,32 @@ export class HelperFunctions {
         }
     }
 
+    /**
+     * Scales a target object based on specified width/height.
+     * Use `null` in the targetSize object to scale with the other axis
+     * Example: smartScale2D({x: 100, y: null}, aSprite);
+     * @param targetSize IVector2 In pixels; width/height
+     * @param obj PIXI.Sprite
+     */
+    public static smartScale2D(
+        targetSize: IVector2, //
+        obj: Sprite
+    ): void {
+        let widthScale = typeof targetSize.x !== "undefined" ? (targetSize.x / obj.width) : null;
+        let heightScale = typeof targetSize.y !== "undefined" ? (targetSize.y / obj.height) : null;
+
+        if (widthScale && !heightScale) {
+            heightScale = widthScale;
+        } else if (heightScale && !widthScale) {
+            widthScale = heightScale;
+        }
+
+        obj.scale.set(
+            widthScale,
+            heightScale,
+        );
+    }
+
     public static getDirectionFromSize(_e: Box3): DIRECTION.RIGHT | DIRECTION.UP {
         const size: Vector3 = new Vector3();
         _e.getSize(size);
@@ -74,6 +101,28 @@ export class HelperFunctions {
             return DIRECTION.RIGHT;
         }
 
+    }
+
+    public static roundToSpecifiedDivider(num: number, div: number): number {
+        return Math.round(num / div) * div;
+    }
+
+    public static getDirectionFromOffset(_offset: IVector2): DIRECTION {
+        const axis = _offset.x > _offset.y ? "x" : "y";
+
+        if (axis === "x") {
+            if (_offset[axis] > 0) {
+                return DIRECTION.DOWN;
+            } else {
+                return DIRECTION.UP;
+            }
+        } else {
+            if (_offset[axis] > 0) {
+                return DIRECTION.RIGHT;
+            } else {
+                return DIRECTION.LEFT;
+            }
+        }
     }
 
     public static waitForTruth(func: () => boolean, refreshRateMs: number = 15): Promise<void> {
@@ -160,22 +209,32 @@ export class HelperFunctions {
      * @param scale Scale of normal map
      * @param repeat Scale of repeat of normal map
      */
-    public static hackFixOverlargeBumpmapOnMesh(mesh: Mesh, scale: number = 0.6, repeat: number = 12): Mesh {
-
+    public static hackFixOverlargeBumpmapOnMesh(mesh: Mesh, scale: number = 0.6, repeat: number = 22): Mesh {
         // @ts-ignore
-        mesh.material.shininess = 0;
-        // @ts-ignore
-        (mesh).material.normalMap = (mesh).material.bumpMap;
-        // @ts-ignore
-        if (!(mesh).material.normalMap) {
-            return mesh;
+        if (!mesh.material || !mesh.material.normalMap) {
+            return;
         }
+
+
         // @ts-ignore
         (mesh).material.normalMap.repeat = new Vector2(repeat, repeat);
         // @ts-ignore
-        (mesh).material.normalScale = new Vector2(scale, scale);
+        (mesh).material.normalScale = new Vector2(scale, -scale);
+
+        // sam - since shifting to GLTF, this needs less input (still needs some though, smh)
+
         // @ts-ignore
-        (mesh).material.bumpMap = null;
+        // mesh.material.shininess = 0;
+        // @ts-ignore
+        // (mesh).material.normalMap = (mesh).material.bumpMap;
+        // @ts-ignore
+        // if (!(mesh).material.normalMap) {
+        //     return mesh;
+        // }
+        // @ts-ignore
+        // (mesh).material.normalMap.repeat = new Vector2(repeat, repeat);
+        // @ts-ignore
+        // (mesh).material.bumpMap = null;
         return mesh;
     }
 
@@ -331,6 +390,27 @@ export class HelperFunctions {
     public static addToStage(stage: Group, obj: GameObject | Object3D, unsafe?: boolean): void {
         // Sam - since making GameObject just extend Object3D, this function got a bit easier
         stage.add(obj);
+    }
+
+    public static formatTimeToHHMMSS(_time: number): string {
+        const hours = Math.floor((_time / 1000 / 3600) % 24)
+        return `${hours}:${HelperFunctions.formatTimeToMMSS(_time)}`;
+    }
+
+    /**
+     * Modified from https://stackoverflow.com/questions/29816872/how-can-i-convert-milliseconds-to-hhmmss-format-using-javascript
+     * @param _time
+     */
+    public static formatTimeToMMSS(_time: number): string {
+        // 1- Convert to seconds:
+        const seconds = Math.floor((_time / 1000) % 60);
+        const minutes = Math.floor((_time / 1000 / 60) % 60);
+
+        return `${
+            minutes < 10 ? "0" + minutes : minutes
+        }:${
+            seconds < 10 ? "0" + seconds : seconds
+        }`;
     }
 
     public static addToStage2D(stage: Container, obj: DisplayObject | GameObject, unsafe?: boolean): void {
@@ -514,11 +594,10 @@ export class HelperFunctions {
         _destVal: number,
         _func: typeof TWEEN.Easing.Linear.None,
         _duration: number = 1000,
-        _onTick?: (obj?: any, elapsed?: number) => boolean | void
+        _onTick?: (obj?: any, elapsed?: number) => boolean
     ): ITweenAnimationReturnValue {
         const start = {};
         const dest = {};
-        // let tween: TWEEN.Tween<{}>;
         // @ts-ignore
         start[_key] = _target[_key];
         // @ts-ignore
@@ -578,7 +657,7 @@ export class HelperFunctions {
         return new Promise<void>(async (resolve: Function, reject: Function): Promise<void> => {
             let progress: number = 0;
             await new Promise((resolve2: Function): void => {
-                const intervalID = setInterval(() => {
+                const intervalID: unknown = setInterval(() => {
                     progress = Math.min(progress + (speed * (_engine?.deltaTime || 1)), 1);
                     if (!_target) reject();
                     _target[_key] = tweenFunc(origValue, _destValue, progress);
@@ -637,7 +716,7 @@ export class HelperFunctions {
                     // @ts-ignore
                     if (self[propKey][prop]) {
                         // @ts-ignore
-                        delete self[propKey][prop];
+                        self[propKey][prop] = undefined;
                         return;
                     }
                 } else {
@@ -648,7 +727,7 @@ export class HelperFunctions {
                             // @ts-ignore
                             if (self[propKey][f] === prop) {
                                 // @ts-ignore
-                                delete self[propKey][f];
+                                self[propKey][f] = undefined;
                                 return;
                             }
                         }
